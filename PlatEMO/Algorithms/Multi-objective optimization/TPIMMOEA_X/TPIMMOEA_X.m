@@ -35,7 +35,8 @@ classdef TPIMMOEA_X < ALGORITHM
 %                        trains node pi(r), while reproduction still reads the node of the parent's region
 % instr     --- 0    --- 1: record the prototypes and the number of training hits per node (metric.protoW, protoHits,
 %                        refN) and the accuracy of the prescreening on all candidates (metric.instrLog), computed with
-%                        CalObj/CalCon, which spend no evaluation and draw no random number
+%                        CalObj/CalCon, which spend no evaluation and draw no random number; with refMap and gen = 1,
+%                        also the base points of reproduction (metric.protoLog, see OperatorInverseDE_X)
 % selMode   --- 0    --- (pre > 1) selection of the B evaluated candidates among the K*B generated: 0 prescreening;
 %                        1 uniformly at random; 2 at random with at most one candidate per region of origin in a first
 %                        pass (niche-stratified), without any prediction
@@ -51,17 +52,21 @@ classdef TPIMMOEA_X < ALGORITHM
 %                        nearest objective prototype (the anchors are not used by the map)
 % etaGlobal --- 0    --- 1: the initial learning rate of each training call falls with the search progress, from eta0
 %                        to 0.1*eta0
+% baseMode  --- 0    --- (refMap, gen = 1) base point of reproduction in place of the prototype of the parent's region:
+%                        0 the prototype; 1 the mean of the current ND members of the region, the parent included;
+%                        2 another ND member of the region drawn at random (the parent when it is alone)
 % The phase T switches above keep the lattice of training apart from LDis, so a training neighbourhood never
 % activates interpolation or niche filling in reproduction, and they draw no random number when they are 0.
+% The same holds for baseMode (phase U).
 
     methods
         function main(Algorithm,Problem)
             %% ---------------- PARAMETERS ----------------
             [numNodes,eta0,sigma0,batchBase,Fbase,CRbase,kernel,lattice,gen,sel,pre,preModel,cheap,topo, ...
              refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode, ...
-             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal] = ...
+             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode] = ...
                 Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0, ...
-                                       0,0,0,0,0);
+                                       0,0,0,0,0,0);
 
             Npop = Problem.N;
 
@@ -184,6 +189,7 @@ classdef TPIMMOEA_X < ALGORITHM
             end
             trained = false(numNodes,1);
             kc.reproNb = reproNb; kc.decBMU = decBMU;
+            kc.baseMode = baseMode;                   % phase U
 
             %% ---------------- MAIN LOOP ----------------
             while Algorithm.NotTerminated(ReportSet(Archive,outN,Npop,M,sel,selRef,RefN))
@@ -250,6 +256,14 @@ classdef TPIMMOEA_X < ALGORITHM
                         Algorithm.metric.instrLog = [Problem.FE, kc.instrRow];
                     end
                     kc.instrRow = [];
+                end
+                if instr && isfield(kc,'protoRow') && ~isempty(kc.protoRow)
+                    if isfield(Algorithm.metric,'protoLog')
+                        Algorithm.metric.protoLog(end+1,:) = [Problem.FE, kc.protoRow];
+                    else
+                        Algorithm.metric.protoLog = [Problem.FE, kc.protoRow];
+                    end
+                    kc.protoRow = [];
                 end
 
                 %% 3) Elitist archive update
@@ -458,6 +472,13 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
 %          predicted ones are evaluated (see Prescreen). predLog records
 %          [FE, mean Spearman(predicted, true), mean absolute error] of
 %          the evaluated candidates (normalized objectives).
+% baseMode (phase U, refMap, gen 1): the prototype of the parent's region is
+%        replaced by the mean of its current ND members (1) or by another
+%        of them (2). With kc.instr, kc.protoRow holds, over all candidates
+%        and then over the evaluated ones, the means of [ND members in the
+%        parent's region, fraction of parents alone in it, |prototype -
+%        parent|, |prototype - region mean|, |region mean - parent|], the
+%        distances in the normalized decision space divided by sqrt(D).
 
     M    = Problem.M;
     D    = Problem.D;
@@ -535,6 +556,13 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
         FnDir = Fnorm./max(vecnorm(Fnorm,2,2),1e-12);
         [~,assocND] = max(FnDir*RefN',[],2);
     end
+    % Phase U: base point read from the parent's region (kc.baseMode) and its
+    % diagnostics (kc.instr); nothing is computed when both are off
+    bm = isfield(kc,'baseMode') && kc.baseMode > 0 && refMap && gen == 1;
+    pl = isfield(kc,'instr') && kc.instr && refMap && gen == 1;
+    if bm || pl
+        NDXu = (ND.decs - Lower)./Range;
+    end
     emptyN = [];
     if niche
         nNodes   = size(RefN,1);
@@ -557,6 +585,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     end
     OffDec   = zeros(nCand,D);
     candNode = zeros(nCand,1);      % map region each candidate was generated for (refMap)
+    candStat = nan(nCand,5);        % phase U diagnostics of the base point (kc.instr)
 
     for i = 1:nCand
         tries = 0;
@@ -612,6 +641,24 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                         k   = nb(randi(numel(nb)));
                         lam = -0.25 + 1.5*rand;
                         xProtoNorm = SomX(j,:) + lam*(SomX(k,:) - SomX(j,:));
+                    end
+                    if bm || pl
+                        r     = assocND(idxP);
+                        mem   = find(assocND == r);           % ND members of the parent's region, the parent included
+                        xPar  = NDXu(idxP,:);
+                        xMean = mean(NDXu(mem,:),1);
+                        if pl
+                            rD = sqrt(D);
+                            candStat(i,:) = [numel(mem), isscalar(mem), norm(SomX(r,:) - xPar)/rD, ...
+                                             norm(SomX(r,:) - xMean)/rD, norm(xMean - xPar)/rD];
+                        end
+                        if bm && kc.baseMode == 1
+                            xProtoNorm = xMean;
+                        elseif bm
+                            oth = mem(mem ~= idxP);           % another member of the region, the parent when alone
+                            if isempty(oth), oth = idxP; end
+                            xProtoNorm = NDXu(oth(randi(numel(oth))),:);
+                        end
                     end
                     if rNb && kc.reproNb == 1 && refMap && ~isempty(NbTr{j})
                         % base point drawn among the winner and its 2 nearest trained neighbours
@@ -702,6 +749,11 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                                                   preModel,RefN,infillD,kc);
         end
         OffDec = OffDec(chosen,:);
+    end
+    if pl
+        ev = 1:nCand;
+        if pre > 1, ev = chosen; end
+        kc.protoRow = [mean(candStat,1,'omitnan'), mean(candStat(ev,:),1,'omitnan')];
     end
 
     Offspring = Problem.Evaluation(OffDec);

@@ -98,7 +98,7 @@ verify_c_results            % audit of the completed runs
 
 The task lists of phases P3 and Q also define configurations of the preliminary design study, which are not reported in the article; phase C reuses their output names, and hence their seeds.
 
-Phase T (`t_build_tasks.m`, `run_t.m`, and `verify_t_results.m`) tests the use of the map neighborhood in training and in reproduction. Its hypotheses, design, and decision rule are fixed in [`docs/phase_T_preregistration.md`](docs/phase_T_preregistration.md) before any of its runs.
+Phase T (`t_build_tasks.m`, `run_t.m`, and `verify_t_results.m`) tests the use of the map neighborhood in training and in reproduction. Its hypotheses, design, and decision rule are fixed in [`docs/phase_T_preregistration.md`](docs/phase_T_preregistration.md) before any of its runs. Phase U (`u_build_tasks.m`, `run_u.m`, and `verify_u_results.m`) tests why the decision prototype of the parent's region is a better base point than the parent itself, as fixed in [`docs/phase_U_preregistration.md`](docs/phase_U_preregistration.md).
 
 ## Regenerating the tables
 
