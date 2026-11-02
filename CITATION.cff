@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the article below."
+title: "TP-IM-MOEA: topology-preserving inverse-modeling multiobjective evolutionary algorithm"
+type: software
+license: MIT
+version: 1.0.0
+date-released: 2026-11-02
+repository-code: "https://github.com/fariaslrc/TP-IM-MOEA"
+authors:
+  - family-names: "de Farias"
+    given-names: "Lucas Rodolfo Celestino"
+  - family-names: "Araújo"
+    given-names: "Aluizio Fausto Ribeiro"
+preferred-citation:
+  type: article
+  title: "Topology-Preserving Inverse Modeling in Multiobjective Evolutionary Optimization"
+  authors:
+    - family-names: "de Farias"
+      given-names: "Lucas Rodolfo Celestino"
+    - family-names: "Araújo"
+      given-names: "Aluizio Fausto Ribeiro"
+  status: submitted
