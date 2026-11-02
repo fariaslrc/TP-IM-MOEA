@@ -94,6 +94,8 @@ def scenario(T, val, lower, label, kr_inst=None):
 
 
 ABL = pd.concat([c('C3')[COLS], c('C1').query("alg == 'OURS'")[COLS]], ignore_index=True)
+if have('K1'):            # noSOM with topo = 4 (phase K): only the base point of reproduction differs from g15
+    ABL = pd.concat([ABL[ABL.alg != 'q06_noSOM'], c('K1').assign(alg='q06_noSOM')[COLS]], ignore_index=True)
 NAMES.update({'q01_noRefMap': 'noRM', 'q02_noInfillD': 'noIF', 'q03_noSelRef': 'noRS', 'q04_noPre': 'noPS', 'q05_noCheap': 'noLD',
               'q06_noSOM': 'noSOM', 'q07_withNbh': 'NB', 'q08_withNbh_shuf': 'NB-sh',
               'a025': 'anchors 25\\%', 'a050': 'anchors 50\\%', 'a100': 'anchors 100\\%', 'r1': 'random selection', 'r2': 'stratified random'})

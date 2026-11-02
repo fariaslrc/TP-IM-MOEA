@@ -91,7 +91,7 @@ verify_c_results            % audit of the completed runs
 | WFG comparison (Sections V-A and V-B) | C1; K-RVEA in P3; MCEA/D and AVG-SAEA in P7; CSEA in P8; PIEA, ADSAPSO, SFA-DE, and REMO in B1 to B4; EGES in D5; K-RVEA with a smaller initial design in F2; optimization time in D1 |
 | Held-out DTLZ suite (Section V-C) | D2, D4 (REMO), and G3 |
 | Real-world problems (Section V-D) | C5, C8, and E1 |
-| Ablation study (Section V-E) | C3; anchor permutation and map topology in F1 and G2; prescreening controls in G1 |
+| Ablation study (Section V-E) | C3, with the variant without the SOM in reproduction in K1; anchor permutation and map topology in F1 and G2; prescreening controls in G1 |
 | Sensitivity analysis (Section V-F) | C4 and C5 (parameters), I1 (population size), H1 to H3 (budget) |
 | Many objectives (Section V-G) | C2, C7 (PIEA), and D3 (EGES) |
 
@@ -105,6 +105,8 @@ The CSV files in `results/` hold every value reported in the article. The tables
 python analysis/make_tables_c.py      # main and supplementary tables
 python analysis/posthoc_c.py          # Friedman, Holm, and Vargha-Delaney tests (Table S16)
 python analysis/make_table_f.py       # anchor permutation and map topology (Table V)
+python analysis/analyze_f.py          # anchor permutation, map topology, and prescreening accuracy on WFG
+python analysis/analyze_g.py          # prescreening controls, and map topology on DTLZ
 python analysis/make_table_rwnorm.py  # normalization of the hypervolume on RWMOP (Table S17)
 python analysis/analyze_h.py          # budget and population size (Table S18)
 python analysis/plot_conv_c.py        # convergence curves (Fig. S1)

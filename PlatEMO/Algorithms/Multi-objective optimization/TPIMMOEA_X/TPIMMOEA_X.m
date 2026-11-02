@@ -17,7 +17,7 @@ classdef TPIMMOEA_X < ALGORITHM
 % pre       --- 0    --- 0: no prescreening; K > 1: generate K*B candidates, evaluate the B best predicted
 % preModel  --- 1    --- 1: SOM forward model; 2: kNN; 3: kNN if M <= 3, SOM otherwise; 4: mean of SOM and kNN; 5: Gaussian RBF; 6: topology-pooled local model (tps); 7: topology-pooled local Kriging (TP-LK, needs refMap)
 % cheap     --- 0    --- 1: LHS initialisation, duplicate rejection and higher initial CR
-% topo      --- 0    --- ablation of the topology: 0 none; 1 lattice positions shuffled once (fraction shufFrac of the nodes); 2 no neighborhood; 3 no SOM in reproduction
+% topo      --- 0    --- ablation of the topology: 0 none; 1 lattice positions shuffled once (fraction shufFrac of the nodes); 2 no neighborhood; 3 no SOM in reproduction; 4 no SOM in reproduction and no neighborhood
 % refMap    --- 0    --- 1: the lattice is the simplex of reference directions (BMU by angle, neighborhood = adjacency between directions)
 % niche     --- 0    --- 1 (needs refMap): half of the candidates fill empty niches by interpolating the occupied lattice neighbours
 % infillD   --- 0    --- 1: prescreening by decomposition (one candidate per niche, predicted PBI improvement, empty niches first)
@@ -122,7 +122,7 @@ classdef TPIMMOEA_X < ALGORITHM
                     perm(S) = S(randperm(numel(S)));
                 end
                 LDis = LDis(perm,perm);
-            elseif topo == 2
+            elseif topo == 2 || topo == 4
                 LDis(LDis > 0) = inf;
             end
 
@@ -487,7 +487,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                 if ~isempty(nbOcc)
                     w    = 1./LDis(j,nbOcc); w = w/sum(w);
                     bary = w*NDXn(rep(nbOcc),:);
-                    if topo == 3
+                    if topo == 3 || topo == 4
                         xProtoNorm = bary;
                     else
                         a = rand;
@@ -527,7 +527,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                         xProtoNorm = SomX(j,:) + lam*(SomX(k,:) - SomX(j,:));
                     end
                 end
-                if topo == 3
+                if topo == 3 || topo == 4
                     % No SOM in reproduction: base point = the parent itself
                     xProtoNorm = (ND(idxP).dec(:)' - Lower)./Range;
                 end

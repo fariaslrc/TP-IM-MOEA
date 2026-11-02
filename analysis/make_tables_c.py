@@ -48,6 +48,8 @@ if (H / 'rescore_remo.csv').exists():            # REMO (block B4), scored on it
     old = pd.concat([old, r[r.run <= 30]])
 WFG = pd.concat([c('C1')[COLS], old[COLS]] + ([c('D5')[COLS]] if have('D5') else []), ignore_index=True)
 ABL = pd.concat([c('C3')[COLS], c('C1').query("alg == 'OURS'")[COLS]], ignore_index=True)
+if have('K1'):            # noSOM with topo = 4 (phase K): only the base point of reproduction differs from g15
+    ABL = pd.concat([ABL[ABL.alg != 'q06_noSOM'], c('K1').assign(alg='q06_noSOM')[COLS]], ignore_index=True)
 MO = pd.concat([c('C2')[COLS], c('C7').assign(alg='PIEA')[COLS], c('D3').assign(alg='EGES')[COLS]], ignore_index=True)
 # CSEA, DTLZ4, m = 3, d = 100, runs 9 and 14 stop with an error: scored on the evaluations before it (G3);
 # until G3 arrives, the runs with new seeds of phase E stand in for them
@@ -107,9 +109,9 @@ def cell(mu, sd, tg, best):
     return f'\\hl{{{s}}}' if best else s
 
 
-def per_instance(C, cols, groups, caption, label, lower=True, colsep='2pt', mean_only=False, ref='OURS'):
+def per_instance(C, cols, groups, caption, label, lower=True, colsep='2pt', mean_only=False, ref='OURS', stretch=1.15):
     """cols: algorithm keys, ref last; groups: [(prob, [(M, D), ...])]."""
-    L = [HEAD + '\\begin{table*}[htbp]', '\\centering', '\\renewcommand{\\arraystretch}{1.15}',
+    L = [HEAD + '\\begin{table*}[htbp]', '\\centering', f'\\renewcommand{{\\arraystretch}}{{{stretch}}}',
          f'\\setlength{{\\tabcolsep}}{{{colsep}}}', f'\\caption{{{caption}}}', '\\resizebox{\\textwidth}{!}{',
          '\\begin{tabular}{@{}' + 'c' * (3 + len(cols)) + '@{}}', '\\toprule',
          'Problem&$m$&$d$&' + '&'.join(NAMES.get(a, a) for a in cols) + '\\\\', '\\midrule']
@@ -157,7 +159,8 @@ for D in (10, 100):
 groups = [(f'WFG{p}', [(m, d) for m in (3, 6, 9) for d in (10, 100)]) for p in range(1, 10)]
 cap = (f'{IGDDEF} (Mean and Standard Deviation) of K-RVEA, EGES, RVEA, and \\ours{{}} on WFG1--WFG9 ($N=50$, $FE=300$, 30 Runs). '
        '``---\'\' Marks $d=100$ for K-RVEA, Whose Initial Design of $11d-1$ Samples Exceeds the Budget. ' + GAP)
-write('krvea_eges_rvea.tex', per_instance(CW, ['KRVEA', 'EGES', 'RVEA', 'OURS'], groups, cap, 'tab:krvea_eges_rvea', colsep='6pt')[0])
+write('krvea_eges_rvea.tex', per_instance(CW, ['KRVEA', 'EGES', 'RVEA', 'OURS'], groups, cap, 'tab:krvea_eges_rvea', colsep='6pt',
+                                          stretch=1.05)[0])
 cap = (f'{IGDDEF} (Mean and Standard Deviation) of MCEA/D, AVG-SAEA, CPS-MOEA, SVR-NSGA-II, CSEA, and \\ours{{}} on WFG1--WFG9 '
        '($N=50$, $FE=300$, 30 Runs). ' + GAP)
 write('nonkriging_baselines.tex', per_instance(CW, ['MCEAD', 'AVGSAEA', 'CPSMOEA', 'SVRNSGAII', 'CSEA', 'OURS'], groups, cap,
@@ -254,14 +257,15 @@ abl = ['q01_noRefMap', 'q02_noInfillD', 'q03_noSelRef', 'q04_noPre', 'q05_noChea
 for a, s in zip(abl, ['noRM', 'noIF', 'noRS', 'noPS', 'noLD', 'noSOM', 'NB', 'NB-sh']):
     NAMES[a] = s
 cap = (f'Mean {IGDDEF} of \\ours{{}} and Its Variants on WFG1--WFG9 (30 Runs, $N=50$, $FE=300$). Each Variant, Named \\ours-$X$, Removes or '
-       'Adds One Component: noRM Replaces the Reference-Anchored Map by a One-Dimensional Chain; noIF Replaces the Decomposition-Based Ranking '
+       'Adds One Component or One Group of Related Operators: noRM Replaces the Reference-Anchored Map by a One-Dimensional Chain; noIF Replaces the Decomposition-Based Ranking '
        'of Candidates by Nondominated Sorting of the Predicted Objectives; noRS Uses Truncation Instead of Reference Niching for $m\\ge4$; noPS '
-       'Evaluates All Candidates Without Prescreening; noLD Removes Latin Hypercube Initialization and Duplicate Rejection; noSOM Uses the Parent '
+       'Evaluates All Candidates Without Prescreening; noLD Removes the Low-Cost Operators (Latin Hypercube Initialization, Duplicate Rejection, '
+       'and the Higher Crossover Schedule); noSOM Uses the Parent '
        'Instead of Its Region\'s Prototype as Base Point; NB and NB-sh Add Neighborhood Cooperation Over the Correct and Over a Randomly Shuffled '
        'Lattice, Respectively. The Best Mean Is Highlighted in Gray. $+$, $-$, and $=$ Indicate That a Variant Performs Significantly Better '
        'Than, Worse Than, and Similarly to \\ours{} (Wilcoxon Rank-Sum Test, 0.05 Significance Level).')
 CA = cache(ABL)
-t, abtags = per_instance(CA, abl + ['OURS'], groups, cap, 'tab:ablation', colsep='2pt', mean_only=True)
+t, abtags = per_instance(CA, abl + ['OURS'], groups, cap, 'tab:ablation', colsep='2pt', mean_only=True, stretch=1.05)
 write('ablation.tex', t)
 inst = [(f'WFG{p}', m, d) for p in range(1, 10) for m in (3, 6, 9) for d in (10, 100)]
 nb = {m: [tag(CA[('q07_withNbh',) + i], CA[('q08_withNbh_shuf',) + i]) for i in inst if i[1] == m] for m in (3, 6, 9)}
