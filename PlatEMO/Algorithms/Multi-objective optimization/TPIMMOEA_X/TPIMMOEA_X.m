@@ -39,13 +39,29 @@ classdef TPIMMOEA_X < ALGORITHM
 % selMode   --- 0    --- (pre > 1) selection of the B evaluated candidates among the K*B generated: 0 prescreening;
 %                        1 uniformly at random; 2 at random with at most one candidate per region of origin in a first
 %                        pass (niche-stratified), without any prediction
+% nbPhase   --- 0    --- (refMap) fraction of the epochs of each training call with a lattice neighbourhood (ordering
+%                        phase, Gaussian radius from 1 to 0.5 hops); the remaining epochs update the winner only
+% nbGlobal  --- 0    --- (refMap) fraction of the search budget with a lattice neighbourhood in every epoch, its radius
+%                        falling linearly from 1 hop to 0 over that fraction; winner only afterwards
+% reproNb   --- 0    --- use of the map neighbourhood in reproduction: 0 none; 1 base point drawn among the winner and
+%                        its 2 nearest trained lattice neighbours; 2 second difference between the decision prototypes
+%                        of those 2 neighbours; 3 second difference between 2 of the 5 archive members nearest to the
+%                        base point in decision space; 4 both difference vectors drawn from those 5 archive members
+% decBMU    --- 0    --- 1: training BMU by the decision part of the prototypes, reproduction reads the node with the
+%                        nearest objective prototype (the anchors are not used by the map)
+% etaGlobal --- 0    --- 1: the initial learning rate of each training call falls with the search progress, from eta0
+%                        to 0.1*eta0
+% The phase T switches above keep the lattice of training apart from LDis, so a training neighbourhood never
+% activates interpolation or niche filling in reproduction, and they draw no random number when they are 0.
 
     methods
         function main(Algorithm,Problem)
             %% ---------------- PARAMETERS ----------------
             [numNodes,eta0,sigma0,batchBase,Fbase,CRbase,kernel,lattice,gen,sel,pre,preModel,cheap,topo, ...
-             refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode] = ...
-                Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0);
+             refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode, ...
+             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal] = ...
+                Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0, ...
+                                       0,0,0,0,0);
 
             Npop = Problem.N;
 
@@ -160,6 +176,15 @@ classdef TPIMMOEA_X < ALGORITHM
                 kc.thetaGlob = 5*ones(1,Problem.D);
             end
 
+            % Phase T: lattice of training (apart from LDis) and the nodes trained so far
+            tc = struct('LDisTrain',[],'nbPhase',nbPhase,'nbGlobal',nbGlobal,'decBMU',decBMU, ...
+                        'etaGlobal',etaGlobal,'search',0);
+            if refMap && (nbPhase > 0 || nbGlobal > 0)
+                tc.LDisTrain = ReferenceGraph(RefN,M);
+            end
+            trained = false(numNodes,1);
+            kc.reproNb = reproNb; kc.decBMU = decBMU;
+
             %% ---------------- MAIN LOOP ----------------
             while Algorithm.NotTerminated(ReportSet(Archive,outN,Npop,M,sel,selRef,RefN))
 
@@ -177,8 +202,11 @@ classdef TPIMMOEA_X < ALGORITHM
                         TrainSet = Archive(FN == 1);
                     end
                 end
-                [W,somQE] = TrainInverseSOM_X(Problem,W,LDis,TrainSet, ...
-                                              numNodes,eta0,sigma0,ideal,nadir,kernel,RefBMU,sigEnd);
+                tc.search = max(0,(Problem.FE - Npop)/max(Problem.maxFE - Npop,1));
+                [W,somQE,hitNow] = TrainInverseSOM_X(Problem,W,LDis,TrainSet, ...
+                                              numNodes,eta0,sigma0,ideal,nadir,kernel,RefBMU,sigEnd,tc);
+                trained = trained | hitNow;
+                kc.trained = trained;
                 if instr && refMap
                     Ft = (TrainSet.objs - ideal)./(nadir - ideal + 1e-12);
                     [~,hit] = max((Ft./max(vecnorm(Ft,2,2),1e-12))*RefBMU',[],2);
@@ -301,18 +329,31 @@ end
 
 %% =================== SOM INVERSE TRAINING ===================
 
-function [W,qe] = TrainInverseSOM_X(Problem,W,LDis,Samples, ...
-                                    numNodes,eta0,sigma0,ideal,nadir,kernel,RefBMU,sigEnd)
+function [W,qe,hit] = TrainInverseSOM_X(Problem,W,LDis,Samples, ...
+                                    numNodes,eta0,sigma0,ideal,nadir,kernel,RefBMU,sigEnd,tc)
 % kernel 0: weight exp(-d) inside the hard radius sigma.
 % kernel 1: Gaussian weight exp(-d^2/(2 sigma^2)), sigma decaying
 %           geometrically from sigma0 to sigEnd within each training call.
 % RefBMU non-empty (refMap): the BMU of a sample is the node whose fixed
 % reference direction makes the smallest angle with the sample's
 % normalized objective vector.
+% tc (phase T): tc.decBMU = 1 takes the BMU by the decision part of the
+% prototypes; tc.nbPhase or tc.nbGlobal > 0 add a Gaussian neighbourhood on
+% tc.LDisTrain (ordering phase), winner only otherwise; tc.etaGlobal = 1
+% scales eta0 by 0.1 + 0.9(1 - search progress). hit: nodes updated with a
+% weight of at least 0.05.
 
+    hit = false(size(W,1),1);
+    if nargin < 13, tc = []; end
     if isempty(Samples)
         qe = inf;
         return;
+    end
+    decB = ~isempty(tc) && tc.decBMU;
+    useT = ~isempty(tc) && ~isempty(tc.LDisTrain);
+    etaScale = 1;
+    if ~isempty(tc) && tc.etaGlobal
+        etaScale = 0.1 + 0.9*(1 - tc.search);
     end
 
     M = Problem.M;
@@ -343,7 +384,18 @@ function [W,qe] = TrainInverseSOM_X(Problem,W,LDis,Samples, ...
         else
             sigma = sigma0 * (sigEnd/sigma0)^((epoch-1)/(nEpoch-1));
         end
-        eta = eta0 * exp(-epoch/nEpoch);
+        eta = etaScale * eta0 * exp(-epoch/nEpoch);
+        sigT = 0;                                 % phase T radius on LDisTrain (0: not used)
+        if useT
+            if tc.nbPhase > 0
+                nPh = max(1,round(tc.nbPhase*nEpoch));
+                if epoch <= nPh
+                    sigT = 0.5^((epoch-1)/max(nPh-1,1));
+                end
+            elseif tc.nbGlobal > 0 && tc.search < tc.nbGlobal
+                sigT = 1 - tc.search/tc.nbGlobal;
+            end
+        end
 
         order = randperm(nS);
         for t = 1:nS
@@ -351,14 +403,20 @@ function [W,qe] = TrainInverseSOM_X(Problem,W,LDis,Samples, ...
             y = Data(s,1:M);
             x = Data(s,M+1:end);
 
-            if isempty(RefBMU)
+            if decB
+                % BMU computed on the decision part of the prototypes
+                [~,bmu] = min(pdist2(x,W(:,M+1:end)));
+            elseif isempty(RefBMU)
                 % BMU computed on objectives only
                 [~,bmu] = min(pdist2(y,W(:,1:M)));
             else
                 bmu = bmuRef(s);
             end
 
-            if kernel == 0
+            if sigT > 0
+                U = tc.LDisTrain(bmu,:) <= 3*sigT;
+                H = exp(-tc.LDisTrain(bmu,U).^2/(2*sigT^2));
+            elseif kernel == 0
                 U = LDis(bmu,:) < sigma;
                 if ~any(U)
                     U(bmu) = true;
@@ -372,6 +430,7 @@ function [W,qe] = TrainInverseSOM_X(Problem,W,LDis,Samples, ...
 
             W(U,1:M)     = W(U,1:M)     + eta*(H .* (y - W(U,1:M)));
             W(U,M+1:end) = W(U,M+1:end) + eta*(H .* (x - W(U,M+1:end)));
+            hit(U) = hit(U) | (H >= 0.05);
         end
     end
 
@@ -432,6 +491,29 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     SomY = W(:,1:M);
     SomX = W(:,M+1:end);
     ArcDec = Archive.decs;
+
+    % Phase T: neighbourhood of the map in reproduction (kc.reproNb) and the
+    % reading rule of DecisionSOM (kc.decBMU); nothing is computed when both are 0
+    rNb  = isfield(kc,'reproNb') && kc.reproNb > 0;
+    decR = isfield(kc,'decBMU')  && kc.decBMU  > 0;
+    if rNb && any(kc.reproNb == [1 2]) && refMap
+        % the 2 nearest trained nodes among the lattice neighbours of each node
+        nNode  = size(RefN,1);
+        CosRef = RefN*RefN';
+        CosRef(1:nNode+1:end) = -inf;
+        [~,Ord] = sort(CosRef,2,'descend');
+        Ord  = Ord(:,1:min(nNode-1,max(2,2*(M-1))));
+        NbTr = cell(nNode,1);
+        for jj = 1:nNode
+            o = Ord(jj,:);
+            if isfield(kc,'trained'), o = o(kc.trained(o)); end
+            NbTr{jj} = o(1:min(2,numel(o)));
+        end
+    end
+    if rNb && any(kc.reproNb == [3 4])
+        ArcNorm = (ArcDec - Lower)./Range;
+        kN = min(5,nArc);
+    end
 
     if gen == 1
         if nND > 1
@@ -518,6 +600,11 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                     else
                         [~,j] = min(pdist2(yP,SomY));
                     end
+                    if decR
+                        % DecisionSOM: read the node with the nearest objective prototype
+                        [~,j] = min(pdist2(yP,SomY));
+                        srcNode = j;
+                    end
                     nb = find(Nbr(j,:));
                     if isempty(nb)
                         xProtoNorm = SomX(j,:);
@@ -525,6 +612,11 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                         k   = nb(randi(numel(nb)));
                         lam = -0.25 + 1.5*rand;
                         xProtoNorm = SomX(j,:) + lam*(SomX(k,:) - SomX(j,:));
+                    end
+                    if rNb && kc.reproNb == 1 && refMap && ~isempty(NbTr{j})
+                        % base point drawn among the winner and its 2 nearest trained neighbours
+                        c = randi(numel(NbTr{j}) + 1);
+                        if c > 1, xProtoNorm = SomX(NbTr{j}(c-1),:); end
                     end
                 end
                 if topo == 3 || topo == 4
@@ -540,6 +632,25 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             idx = randperm(nArc,2);
             X1  = ArcDec(idx(1),:);
             X2  = ArcDec(idx(2),:);
+            extra = [];                           % phase T second difference
+            if rNb
+                switch kc.reproNb
+                    case 2      % between the decision prototypes of 2 trained neighbours of the region
+                        if refMap && srcNode > 0 && numel(NbTr{srcNode}) == 2
+                            nbj = NbTr{srcNode};
+                            if rand < 0.5, nbj = nbj([2 1]); end
+                            extra = (SomX(nbj(1),:) - SomX(nbj(2),:)) .* Range;
+                        end
+                    case {3,4}  % among the archive members nearest to the base point in decision space
+                        [~,nn] = sort(sum((ArcNorm - xProtoNorm).^2,2));
+                        pick = nn(randperm(kN,2));
+                        if kc.reproNb == 3
+                            extra = ArcDec(pick(1),:) - ArcDec(pick(2),:);
+                        else
+                            X1 = ArcDec(pick(1),:); X2 = ArcDec(pick(2),:);
+                        end
+                end
+            end
 
             F_adapt = 0.8 - 0.4*progress;
             if cheap
@@ -552,6 +663,9 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             CR_loc = max(0.0,min(1.0,0.5*(CRbase + CR_adapt)));
 
             v = xProto + F_loc .* (X1 - X2);
+            if ~isempty(extra)
+                v = v + 0.5*F_loc .* extra;
+            end
             v = min(max(v,Lower),Upper);
 
             jrand = randi(D);

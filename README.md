@@ -15,6 +15,7 @@ TP-IM-MOEA organizes the inverse model, which maps the objective space to the de
 | `PlatEMO/` | Files to copy over PlatEMO 4.16: the algorithm, the changes to the platform used in the experiments, and the experiment scripts |
 | `analysis/` | Scripts that turn the runs into the tables, statistical tests, and figure of the article |
 | `results/` | Per-run results of every experiment of the article (CSV) |
+| `docs/` | Pre-registration of the experiments in progress |
 
 ## Requirements
 
@@ -96,6 +97,8 @@ verify_c_results            % audit of the completed runs
 | Many objectives (Section V-G) | C2, C7 (PIEA), and D3 (EGES) |
 
 The task lists of phases P3 and Q also define configurations of the preliminary design study, which are not reported in the article; phase C reuses their output names, and hence their seeds.
+
+Phase T (`t_build_tasks.m`, `run_t.m`, and `verify_t_results.m`) tests the use of the map neighborhood in training and in reproduction. Its hypotheses, design, and decision rule are fixed in [`docs/phase_T_preregistration.md`](docs/phase_T_preregistration.md) before any of its runs.
 
 ## Regenerating the tables
 
