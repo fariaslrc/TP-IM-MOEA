@@ -1,10 +1,10 @@
 # TP-IM-MOEA
 
-**Topology-preserving inverse-modeling multiobjective evolutionary algorithm**
+**Topology-preserving inverse-modeling multi-objective evolutionary algorithm**
 
 This repository contains the implementation of TP-IM-MOEA and everything needed to reproduce the experiments of the article:
 
-> L. R. C. de Farias and A. F. R. Araújo, "Topology-Preserving Inverse Modeling in Multiobjective Evolutionary Optimization," under review.
+> L. R. C. de Farias and A. F. R. Araújo, "Topology-Preserving Inverse Modeling in Multi-Objective Evolutionary Optimization," under review.
 
 TP-IM-MOEA organizes the inverse model, which maps the objective space to the decision space, as a self-organizing map (SOM) whose prototypes are ordered over the objective space. Each node is anchored to a reference direction and summarizes the nondominated solutions of its region of the Pareto front, so that adjacent regions are reconstructed from adjacent prototypes. Candidates are reconstructed from the prototypes of sparsely covered regions, refined by budget-adaptive differential evolution, and screened by an instance-based predictor before any evaluation is spent. No surrogate model of the objectives is fitted, and a run with 300 evaluations takes about half a second.
 

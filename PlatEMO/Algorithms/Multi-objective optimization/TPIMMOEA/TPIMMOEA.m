@@ -1,6 +1,6 @@
 classdef TPIMMOEA < TPIMMOEA_X
 % <2026> <multi/many> <real/integer> <constrained/none> <expensive>
-% Topology-preserving inverse-modeling multiobjective evolutionary algorithm
+% Topology-preserving inverse-modeling multi-objective evolutionary algorithm
 % eta0  --- 0.2  --- Initial learning rate of the SOM
 % B0    --- 10   --- Base batch size of real evaluations
 % F0    --- 0.5  --- Base scaling factor of DE
@@ -13,7 +13,7 @@ classdef TPIMMOEA < TPIMMOEA_X
 
 %------------------------------- Reference --------------------------------
 % L. R. C. de Farias and A. F. R. Araujo. Topology-preserving inverse
-% modeling in multiobjective evolutionary optimization. Under review.
+% modeling in multi-objective evolutionary optimization. Under review.
 %--------------------------------------------------------------------------
 
 % This class runs the research implementation TPIMMOEA_X with the final
