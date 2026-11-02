@@ -29,7 +29,7 @@ L = ['\\providecommand{\\ours}{TP-IM-MOEA}', '\\begin{table}[t]', '\\centering',
      '\\caption{Effect of Permuting the Anchors of the Map on WFG1--WFG9 (54 Instances, 30 Runs). A Permuted Fraction of the Nodes Is Trained '
      'on the Region of Another Node, While Reproduction Still Reads the Node of the Parent\'s Region. $+/-/=$ Counts the Instances on Which a '
      'Variant Performs Significantly Better Than, Worse Than, and Similarly to \\ours{} (Wilcoxon Rank-Sum Test, 0.05 Significance Level); '
-     'Rank Is the Friedman Mean Rank; Ratio Is the Mean IGD Relative to \\ours{}. The Last Three Columns Describe the Final Map: $\\rho$ Is '
+     'Rank Is the Friedman Mean Rank; Ratio Is the Mean IGD Relative to \\ours{}. The Last Three Columns Describe the Trained Nodes of the Final Map: $\\rho$ Is '
      'the Spearman Correlation Between Lattice Distance and Decision-Space Distance of the Prototypes, Overlap Is the Share of Lattice Neighbors '
      'Among the Nearest Prototypes in Decision Space (Expected Value for a Random Map in Parentheses), and $\\delta$ Is the Mean Decision-Space '
      'Distance Between Adjacent Prototypes Relative to Nonadjacent Ones.}',

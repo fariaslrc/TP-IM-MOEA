@@ -119,7 +119,7 @@ def fp(p):
     return f'{p:.3f}'
 
 
-L = ['\\providecommand{\\ours}{TP-IM-MOEA}', '\\begin{table*}[htbp]', '\\centering', '\\renewcommand{\\arraystretch}{1.1}',
+L = ['\\providecommand{\\ours}{TP-IM-MOEA}', '\\begin{table*}[htbp]', '\\centering', '\\renewcommand{\\arraystretch}{1.05}',
      '\\caption{Post-Hoc Analysis With \\ours{} as the Control. Rank Is the Friedman Mean Rank on the Mean Indicator Values; $p_{\\mathrm{Holm}}$ '
      'Is the $p$-Value of the Wilcoxon Signed-Rank Test Over the Instances Between \\ours{} and Each Algorithm, Adjusted by Holm\'s Procedure '
      'Over the Algorithms of Each Scenario (K-RVEA, Compared on the Instances With $d=10$, Is Not Adjusted); $\\hat{A}_{12}$ Is the Median Over the '
