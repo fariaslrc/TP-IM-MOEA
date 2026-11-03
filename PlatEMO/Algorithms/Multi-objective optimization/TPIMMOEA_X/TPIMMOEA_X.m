@@ -61,18 +61,27 @@ classdef TPIMMOEA_X < ALGORITHM
 %                        (normalized exponentials). Drawn with a fixed seed, so the run's random stream is unchanged
 % refScope  --- 0    --- (refGen > 0) 0: the new directions serve the map, the prescreening and the selection;
 %                        1: the map only, the prescreening and the selection keep the Das-Dennis directions
+% fill      --- 0    --- (refMap, niche) gap filling on the reference graph, apart from LDis and without any training
+%                        neighbourhood: half of the candidates target an empty niche j from the representatives of its
+%                        occupied neighbours; 1 within 2 hops, weights 1/hop; 2 within 1 hop, equal weights, a
+%                        representative far from the others in decision space excluded
+% interp    --- 0    --- (refMap, gen = 1) piecewise-linear read-out of the inverse model at the parent: the base point is
+%                        the convex combination of the decision prototypes of the parent's node and of its trained
+%                        neighbours whose objective prototypes best reproduce the parent; 1 neighbours on the reference
+%                        graph (1 hop); 2 as many trained nodes, the nearest in objective space (no graph)
+% graphShuf --- 0    --- (fill or interp) 1: the graph of gap filling and interpolation is permuted once per run
 % The phase T switches above keep the lattice of training apart from LDis, so a training neighbourhood never
 % activates interpolation or niche filling in reproduction, and they draw no random number when they are 0.
-% The same holds for baseMode (phase U) and refGen (phase V).
+% The same holds for baseMode (phase U), refGen (phase V), and fill, interp and graphShuf (phase W).
 
     methods
         function main(Algorithm,Problem)
             %% ---------------- PARAMETERS ----------------
             [numNodes,eta0,sigma0,batchBase,Fbase,CRbase,kernel,lattice,gen,sel,pre,preModel,cheap,topo, ...
              refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode, ...
-             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope] = ...
+             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope,fill,interp,graphShuf] = ...
                 Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0, ...
-                                       0,0,0,0,0,0,0,0);
+                                       0,0,0,0,0,0,0,0,0,0,0);
 
             Npop = Problem.N;
 
@@ -208,6 +217,20 @@ classdef TPIMMOEA_X < ALGORITHM
             kc.reproNb = reproNb; kc.decBMU = decBMU;
             kc.baseMode = baseMode;                   % phase U
             if refGen > 0, kc.RefS = RefS; end        % phase V: directions of the decomposition infill
+            % Phase W: graph of gap filling and interpolation (the reference graph,
+            % apart from LDis), optionally permuted once per run with a seed
+            % derived from the run's seed; the random stream is restored
+            kc.fill = fill; kc.interp = interp;
+            if refMap && (fill > 0 || interp > 0)
+                kc.LDisF = ReferenceGraph(RefN,M);
+                if graphShuf
+                    s = rng;
+                    rng(s.Seed + 1,'twister');
+                    pg = randperm(size(RefN,1));
+                    rng(s);
+                    kc.LDisF = kc.LDisF(pg,pg);
+                end
+            end
 
             %% ---------------- MAIN LOOP ----------------
             while Algorithm.NotTerminated(ReportSet(Archive,outN,Npop,M,sel,selRef,RefS))
@@ -366,6 +389,31 @@ function W1 = RandomUniformDirections(N,M,dirichlet)
         W2(Rank(end),:) = [];
     end
     W1 = max(W1,1e-6);
+end
+
+function lam = SimplexWeights(P,y)
+% Convex weights (lam >= 0, sum(lam) = 1) whose combination of the rows of P
+% is nearest to y, by nonnegative least squares with the sum enforced by a
+% heavily weighted row: the barycentric coordinates of y when it lies in the
+% convex hull of the rows of P. No random number is drawn.
+    rho = 10;
+    lam = lsqnonneg([P'; rho*ones(1,size(P,1))],[y(:); rho]);
+    if sum(lam) > 0
+        lam = lam/sum(lam);
+    else
+        lam = [1; zeros(size(P,1)-1,1)];
+    end
+end
+
+function c = GuardedMean(X)
+% Mean of the rows of X without those farther than twice the median distance
+% from the coordinate-wise median, that is, without a representative that
+% jumps in decision space; all rows are kept when there are at most two.
+    if size(X,1) > 2
+        dist = vecnorm(X - median(X,1),2,2);
+        X = X(dist <= 2*median(dist) + 1e-12,:);
+    end
+    c = mean(X,1);
 end
 
 function LDis = ReferenceGraph(RefN,M)
@@ -611,6 +659,16 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     if bm || pl
         NDXu = (ND.decs - Lower)./Range;
     end
+    % Phase W: gap filling on the reference graph (kc.fill) and piecewise-linear
+    % read-out at the parent (kc.interp); nothing changes when both are 0
+    fillOn = isfield(kc,'fill') && kc.fill > 0 && isfield(kc,'LDisF');
+    LDn = LDis;
+    if fillOn, LDn = kc.LDisF; end
+    ipOn = isfield(kc,'interp') && kc.interp > 0 && isfield(kc,'LDisF') && refMap && gen == 1;
+    if ipOn
+        A1  = kc.LDisF == 1;
+        trn = kc.trained(:)';
+    end
     emptyN = [];
     if niche
         nNodes   = size(RefN,1);
@@ -642,11 +700,19 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             srcNode  = 0;
             if niche && ~isempty(emptyN) && rand < 0.5
                 j     = emptyN(randi(numel(emptyN)));
-                nbOcc = find(LDis(j,:) <= 2 & occupied);
+                if fillOn && kc.fill == 2
+                    nbOcc = find(LDn(j,:) <= 1 & occupied);
+                else
+                    nbOcc = find(LDn(j,:) <= 2 & occupied);
+                end
                 if ~isempty(nbOcc)
-                    w    = 1./LDis(j,nbOcc); w = w/sum(w);
-                    bary = w*NDXn(rep(nbOcc),:);
-                    if topo == 3 || topo == 4
+                    if fillOn && kc.fill == 2
+                        bary = GuardedMean(NDXn(rep(nbOcc),:));
+                    else
+                        w    = 1./LDn(j,nbOcc); w = w/sum(w);
+                        bary = w*NDXn(rep(nbOcc),:);
+                    end
+                    if topo == 3 || topo == 4 || fillOn
                         xProtoNorm = bary;
                     else
                         a = rand;
@@ -689,6 +755,20 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                         k   = nb(randi(numel(nb)));
                         lam = -0.25 + 1.5*rand;
                         xProtoNorm = SomX(j,:) + lam*(SomX(k,:) - SomX(j,:));
+                    end
+                    if ipOn
+                        nbI = find(A1(j,:) & trn);
+                        if kc.interp == 2 && ~isempty(nbI)
+                            % as many trained nodes, the nearest in objective space (no graph)
+                            cand = find(trn); cand(cand == j) = [];
+                            [~,o] = sort(sum((SomY(cand,:) - SomY(j,:)).^2,2));
+                            nbI  = cand(o(1:min(numel(nbI),numel(cand))));
+                        end
+                        if ~isempty(nbI)
+                            S   = [j, nbI];
+                            lam = SimplexWeights(SomY(S,:),yP);
+                            xProtoNorm = lam(:)'*SomX(S,:);
+                        end
                     end
                     if bm || pl
                         r     = assocND(idxP);
