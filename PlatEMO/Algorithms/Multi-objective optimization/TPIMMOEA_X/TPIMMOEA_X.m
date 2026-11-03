@@ -55,18 +55,24 @@ classdef TPIMMOEA_X < ALGORITHM
 % baseMode  --- 0    --- (refMap, gen = 1) base point of reproduction in place of the prototype of the parent's region:
 %                        0 the prototype; 1 the mean of the current ND members of the region, the parent included;
 %                        2 another ND member of the region drawn at random (the parent when it is alone)
+% refGen    --- 0    --- reference directions: 0 Das-Dennis (UniformPoint); 1 the weights of MOEA/D-UR (vertices and
+%                        centroid of the simplex, then the farthest of 5000 random candidates, one at a time), which
+%                        gives exactly N directions for any m; 2 the same with candidates uniform on the simplex
+%                        (normalized exponentials). Drawn with a fixed seed, so the run's random stream is unchanged
+% refScope  --- 0    --- (refGen > 0) 0: the new directions serve the map, the prescreening and the selection;
+%                        1: the map only, the prescreening and the selection keep the Das-Dennis directions
 % The phase T switches above keep the lattice of training apart from LDis, so a training neighbourhood never
 % activates interpolation or niche filling in reproduction, and they draw no random number when they are 0.
-% The same holds for baseMode (phase U).
+% The same holds for baseMode (phase U) and refGen (phase V).
 
     methods
         function main(Algorithm,Problem)
             %% ---------------- PARAMETERS ----------------
             [numNodes,eta0,sigma0,batchBase,Fbase,CRbase,kernel,lattice,gen,sel,pre,preModel,cheap,topo, ...
              refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode, ...
-             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode] = ...
+             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope] = ...
                 Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0, ...
-                                       0,0,0,0,0,0);
+                                       0,0,0,0,0,0,0,0);
 
             Npop = Problem.N;
 
@@ -83,10 +89,21 @@ classdef TPIMMOEA_X < ALGORITHM
             M = Problem.M;
 
             %% ---------------- REFERENCE DIRECTIONS (deterministic) ----------------
+            % RefN: directions of the map; RefS: directions of the prescreening and
+            % the selection, the same set unless refScope = 1 (phase V)
             RefN = [];
             if refMap || infillD || selRef
-                RefV = UniformPoint(Npop,M);
+                if refGen == 0
+                    RefV = UniformPoint(Npop,M);
+                else
+                    RefV = RandomUniformDirections(Npop,M,refGen == 2);
+                end
                 RefN = RefV./max(vecnorm(RefV,2,2),1e-12);
+            end
+            RefS = RefN;
+            if refGen > 0 && refScope == 1 && ~isempty(RefN)
+                RefV = UniformPoint(Npop,M);
+                RefS = RefV./max(vecnorm(RefV,2,2),1e-12);
             end
             niche = niche && refMap;
 
@@ -190,9 +207,10 @@ classdef TPIMMOEA_X < ALGORITHM
             trained = false(numNodes,1);
             kc.reproNb = reproNb; kc.decBMU = decBMU;
             kc.baseMode = baseMode;                   % phase U
+            if refGen > 0, kc.RefS = RefS; end        % phase V: directions of the decomposition infill
 
             %% ---------------- MAIN LOOP ----------------
-            while Algorithm.NotTerminated(ReportSet(Archive,outN,Npop,M,sel,selRef,RefN))
+            while Algorithm.NotTerminated(ReportSet(Archive,outN,Npop,M,sel,selRef,RefS))
 
                 progress = Problem.FE / Problem.maxFE;
 
@@ -272,7 +290,7 @@ classdef TPIMMOEA_X < ALGORITHM
                 K       = min(MaxArc,length(Archive));
 
                 if selRef && M >= 4
-                    Archive = RefNicheSelection(Archive,K,RefN);
+                    Archive = RefNicheSelection(Archive,K,RefS);
                 elseif sel == 0
                     [FrontNo,MaxFNo] = NDSort(Archive.objs,Archive.cons,K);
                     Next = FrontNo < MaxFNo;
@@ -319,6 +337,36 @@ function P = ReportSet(Archive,outN,N,M,sel,selRef,RefN)
 end
 
 %% =================== REFERENCE GRAPH ===================
+
+function W1 = RandomUniformDirections(N,M,dirichlet)
+% Weight vectors of MOEA/D-UR (L. R. de Farias and A. F. Araujo, Swarm and
+% Evolutionary Computation, 2022; UniformlyRandomlyPoint.m of PlatEMO): the
+% M vertices and the centroid of the unit simplex, then, one at a time, the
+% candidate farthest from the chosen set among 5000 random points of the
+% simplex, until N points. dirichlet = true draws the candidates uniformly
+% on the simplex (normalized exponentials) instead of normalized uniforms.
+% The candidates are drawn with a fixed seed and the random stream is
+% restored, so the directions are the same in every run and the run is not
+% otherwise affected.
+
+    s = rng;
+    rng(1,'twister');
+    if dirichlet
+        W2 = -log(rand(5000,M));
+    else
+        W2 = rand(5000,M);
+    end
+    rng(s);
+    W2 = W2./repmat(sum(W2,2),1,M);
+    W1 = [eye(M); ones(1,M)/M];
+    while size(W1,1) < N
+        Temp     = sort(pdist2(W2,W1),2);
+        [~,Rank] = sortrows(Temp);
+        W1(end+1,:)       = W2(Rank(end),:); %#ok<AGROW>
+        W2(Rank(end),:) = [];
+    end
+    W1 = max(W1,1e-6);
+end
 
 function LDis = ReferenceGraph(RefN,M)
 % Lattice of the reference-anchored map: each direction is linked to its
@@ -948,6 +996,9 @@ function [chosen,PredSel,SdSel,kc] = Prescreen(Problem,Archive,W,LDis,Cand,B,ide
         avail = true(1,nC);
     end
 
+    % Phase V: the decomposition uses the directions of prescreening and
+    % selection, which differ from those of the map only when refScope = 1
+    if isfield(kc,'RefS') && ~isempty(kc.RefS), RefN = kc.RefS; end
     if infillD && ~isempty(RefN)
         theta = 5;
         if isfield(kc,'pbiTheta'), theta = kc.pbiTheta; end
