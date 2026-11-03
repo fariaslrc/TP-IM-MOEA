@@ -69,19 +69,25 @@ classdef TPIMMOEA_X < ALGORITHM
 %                        the convex combination of the decision prototypes of the parent's node and of its trained
 %                        neighbours whose objective prototypes best reproduce the parent; 1 neighbours on the reference
 %                        graph (1 hop); 2 as many trained nodes, the nearest in objective space (no graph)
-% graphShuf --- 0    --- (fill or interp) 1: the graph of gap filling and interpolation is permuted once per run
+% graphShuf --- 0    --- 1: every graph in use (gap filling, interpolation, cell read-out and the training lattice of
+%                        the ordering phase) is permuted, with one permutation per run
+% cellRead  --- 0    --- (refMap, gen = 1) read-out on the cell of the parent: the base point is the convex combination
+%                        of the decision prototypes of the parent's node j and of m-1 nodes updated in the current
+%                        training call, with the weights whose objective prototypes best reproduce the parent;
+%                        1 the m-1 graph neighbours of j angularly nearest to the parent; 2 the m-1 nodes whose
+%                        objective prototypes are nearest to the parent (no graph). With instr, metric.cellLog
 % The phase T switches above keep the lattice of training apart from LDis, so a training neighbourhood never
 % activates interpolation or niche filling in reproduction, and they draw no random number when they are 0.
-% The same holds for baseMode (phase U), refGen (phase V), and fill, interp and graphShuf (phase W).
+% The same holds for baseMode (phase U), refGen (phase V), fill, interp and graphShuf (phase W), and cellRead (phase X).
 
     methods
         function main(Algorithm,Problem)
             %% ---------------- PARAMETERS ----------------
             [numNodes,eta0,sigma0,batchBase,Fbase,CRbase,kernel,lattice,gen,sel,pre,preModel,cheap,topo, ...
              refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode, ...
-             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope,fill,interp,graphShuf] = ...
+             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope,fill,interp,graphShuf,cellRead] = ...
                 Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0, ...
-                                       0,0,0,0,0,0,0,0,0,0,0);
+                                       0,0,0,0,0,0,0,0,0,0,0,0);
 
             Npop = Problem.N;
 
@@ -220,16 +226,20 @@ classdef TPIMMOEA_X < ALGORITHM
             % Phase W: graph of gap filling and interpolation (the reference graph,
             % apart from LDis), optionally permuted once per run with a seed
             % derived from the run's seed; the random stream is restored
-            kc.fill = fill; kc.interp = interp;
-            if refMap && (fill > 0 || interp > 0)
+            % Phase X uses the same graph for the cell read-out (kc.cellRead), and
+            % graphShuf permutes, with one permutation per run, every graph in use:
+            % this one and the training lattice of the ordering phase
+            kc.fill = fill; kc.interp = interp; kc.cellRead = cellRead;
+            if refMap && (fill > 0 || interp > 0 || cellRead > 0)
                 kc.LDisF = ReferenceGraph(RefN,M);
-                if graphShuf
-                    s = rng;
-                    rng(s.Seed + 1,'twister');
-                    pg = randperm(size(RefN,1));
-                    rng(s);
-                    kc.LDisF = kc.LDisF(pg,pg);
-                end
+            end
+            if refMap && graphShuf && (isfield(kc,'LDisF') || ~isempty(tc.LDisTrain))
+                s = rng;
+                rng(s.Seed + 1,'twister');
+                pg = randperm(size(RefN,1));
+                rng(s);
+                if isfield(kc,'LDisF'), kc.LDisF = kc.LDisF(pg,pg); end
+                if ~isempty(tc.LDisTrain), tc.LDisTrain = tc.LDisTrain(pg,pg); end
             end
 
             %% ---------------- MAIN LOOP ----------------
@@ -254,6 +264,7 @@ classdef TPIMMOEA_X < ALGORITHM
                                               numNodes,eta0,sigma0,ideal,nadir,kernel,RefBMU,sigEnd,tc);
                 trained = trained | hitNow;
                 kc.trained = trained;
+                kc.updatedNow = hitNow;                % phase X: nodes updated in this training call
                 if instr && refMap
                     Ft = (TrainSet.objs - ideal)./(nadir - ideal + 1e-12);
                     [~,hit] = max((Ft./max(vecnorm(Ft,2,2),1e-12))*RefBMU',[],2);
@@ -305,6 +316,14 @@ classdef TPIMMOEA_X < ALGORITHM
                         Algorithm.metric.protoLog = [Problem.FE, kc.protoRow];
                     end
                     kc.protoRow = [];
+                end
+                if instr && isfield(kc,'cellRow') && ~isempty(kc.cellRow)
+                    if isfield(Algorithm.metric,'cellLog')
+                        Algorithm.metric.cellLog(end+1,:) = [Problem.FE, kc.cellRow];
+                    else
+                        Algorithm.metric.cellLog = [Problem.FE, kc.cellRow];
+                    end
+                    kc.cellRow = [];
                 end
 
                 %% 3) Elitist archive update
@@ -669,6 +688,12 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
         A1  = kc.LDisF == 1;
         trn = kc.trained(:)';
     end
+    % Phase X: read-out on the cell of the parent (kc.cellRead)
+    crOn = isfield(kc,'cellRead') && kc.cellRead > 0 && isfield(kc,'LDisF') && refMap && gen == 1;
+    if crOn
+        A1c = kc.LDisF == 1;
+        upd = kc.updatedNow(:)';
+    end
     emptyN = [];
     if niche
         nNodes   = size(RefN,1);
@@ -692,6 +717,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     OffDec   = zeros(nCand,D);
     candNode = zeros(nCand,1);      % map region each candidate was generated for (refMap)
     candStat = nan(nCand,5);        % phase U diagnostics of the base point (kc.instr)
+    cellStat = nan(nCand,3);        % phase X: [residual, weight on the neighbours, nodes in the cell - 1]
 
     for i = 1:nCand
         tries = 0;
@@ -768,6 +794,21 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                             S   = [j, nbI];
                             lam = SimplexWeights(SomY(S,:),yP);
                             xProtoNorm = lam(:)'*SomX(S,:);
+                        end
+                    end
+                    if crOn
+                        if kc.cellRead == 1     % graph neighbours of j, angularly nearest to the parent
+                            cand = find(A1c(j,:) & upd);
+                            [~,o] = sort(-RefN(cand,:)*FnDir(idxP,:)');
+                        else                    % nodes nearest to the parent in objective space (no graph)
+                            cand = find(upd); cand(cand == j) = [];
+                            [~,o] = sort(sum((SomY(cand,:) - yP).^2,2));
+                        end
+                        if ~isempty(cand)
+                            S   = [j, cand(o(1:min(M-1,numel(cand))))];
+                            lam = SimplexWeights(SomY(S,:),yP);
+                            xProtoNorm    = lam(:)'*SomX(S,:);
+                            cellStat(i,:) = [norm(lam(:)'*SomY(S,:) - yP), 1 - lam(1), numel(S) - 1];
                         end
                     end
                     if bm || pl
@@ -882,6 +923,11 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
         ev = 1:nCand;
         if pre > 1, ev = chosen; end
         kc.protoRow = [mean(candStat,1,'omitnan'), mean(candStat(ev,:),1,'omitnan')];
+    end
+    if crOn && isfield(kc,'instr') && kc.instr
+        ev = 1:nCand;
+        if pre > 1, ev = chosen; end
+        kc.cellRow = [mean(cellStat,1,'omitnan'), mean(cellStat(ev,:),1,'omitnan')];
     end
 
     Offspring = Problem.Evaluation(OffDec);
