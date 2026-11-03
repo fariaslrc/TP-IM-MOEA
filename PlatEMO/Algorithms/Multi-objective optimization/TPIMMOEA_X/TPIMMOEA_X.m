@@ -76,18 +76,23 @@ classdef TPIMMOEA_X < ALGORITHM
 %                        training call, with the weights whose objective prototypes best reproduce the parent;
 %                        1 the m-1 graph neighbours of j angularly nearest to the parent; 2 the m-1 nodes whose
 %                        objective prototypes are nearest to the parent (no graph). With instr, metric.cellLog
+% batchOne  --- 0    --- 1: when the budget does not exceed Theta (no batch adaptation), one evaluation per generation,
+%                        chosen by the prescreening among the same pre*batchSize candidates as with the base batch
+% arcCap    --- 0    --- capacity of the archive; 0: 2N
 % The phase T switches above keep the lattice of training apart from LDis, so a training neighbourhood never
 % activates interpolation or niche filling in reproduction, and they draw no random number when they are 0.
-% The same holds for baseMode (phase U), refGen (phase V), fill, interp and graphShuf (phase W), and cellRead (phase X).
+% The same holds for baseMode (phase U), refGen (phase V), fill, interp and graphShuf (phase W), cellRead (phase X),
+% and batchOne and arcCap (phase AA).
 
     methods
         function main(Algorithm,Problem)
             %% ---------------- PARAMETERS ----------------
             [numNodes,eta0,sigma0,batchBase,Fbase,CRbase,kernel,lattice,gen,sel,pre,preModel,cheap,topo, ...
              refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode, ...
-             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope,fill,interp,graphShuf,cellRead] = ...
+             nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope,fill,interp,graphShuf,cellRead, ...
+             batchOne,arcCap] = ...
                 Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0, ...
-                                       0,0,0,0,0,0,0,0,0,0,0,0);
+                                       0,0,0,0,0,0,0,0,0,0,0,0,0,0);
 
             Npop = Problem.N;
 
@@ -286,6 +291,12 @@ classdef TPIMMOEA_X < ALGORITHM
                     maxBatch = Npop;
                     batchEff = round(minBatch + (maxBatch-minBatch)*adaptScore);
                 end
+                % Phase AA: one evaluation per generation on small budgets, from the same candidate pool
+                kc.nPool = [];
+                if batchOne && Problem.maxFE <= Theta
+                    batchEff = 1;
+                    kc.nPool = round(max(pre,1)*batchBase);
+                end
 
                 remainingFE = Problem.maxFE - Problem.FE;
                 batchEff    = max(1,min(batchEff,remainingFE));
@@ -329,6 +340,7 @@ classdef TPIMMOEA_X < ALGORITHM
                 %% 3) Elitist archive update
                 Archive = [Archive,Offspring];
                 MaxArc  = 2*Npop;
+                if arcCap > 0, MaxArc = arcCap; end     % phase AA
                 K       = min(MaxArc,length(Archive));
 
                 if selRef && M >= 4
@@ -714,6 +726,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     if pre > 1
         nCand = round(pre*batchSize);
     end
+    if isfield(kc,'nPool') && ~isempty(kc.nPool), nCand = kc.nPool; end   % phase AA: same pool, one evaluated
     OffDec   = zeros(nCand,D);
     candNode = zeros(nCand,1);      % map region each candidate was generated for (refMap)
     candStat = nan(nCand,5);        % phase U diagnostics of the base point (kc.instr)
