@@ -15,7 +15,7 @@ function source = ac_provenance(tasks,requireRuntime)
         required = [required,{'x1_transport','x1_history_append','x1_graph','x1_cooperation_weights', ...
             'x1_movement_fit','x1_movement_apply','x1_movement_update','x1_repair_fit','x1_repair_apply'}];
     end
-    if any(startsWith({tasks.config},'repair_') | strcmp({tasks.config},'combined'))
+    if any(contains({tasks.config},'repair') | strcmp({tasks.config},'combined'))
         required{end+1} = 'quadprog';
     end
     % NNLS is also used by the historical SOM readout.

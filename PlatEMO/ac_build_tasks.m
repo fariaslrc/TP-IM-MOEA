@@ -1,21 +1,22 @@
 function tasks = ac_build_tasks(block,profiles,runs)
-%AC_BUILD_TASKS Phase AC (lean version 2); construction never runs a problem.
-%   AC1 WFG m 3,6,9 (54)   AC2 WFG m 15,20 (36)   AC3 DTLZ m 3,6,9 (30): cooperation and its controls
-%   AC4 RWMOP1-35: cooperation, repair (trigger 'infeasible') and movement (FE >= 300) with controls
-% Default runs 1:30, the seeds of every result of the article, so g15 (C1, C2, D2, C5) and
-% X1 (phases X and AB) are reused as references and are not rerun.
+%AC_BUILD_TASKS Phase AC (version 3); construction never runs a problem.
+%   AC1 WFG m 3,6,9 (54)  AC2 WFG m 15,20 (36)  AC3 DTLZ m 3,6,9 (30): the three cooperation changes,
+%       one at a time and together (coop3), on X1 with the ordering gate ('gated')
+%   AC4 RWMOP1-35: coop3 and the repair (trigger 'infeasible'), global and through the SOM
+% Default runs 1:30, the seeds of every result of the article. The reference 'gated' is not run:
+% it equals X1 where the lattice has resolution H1 >= 2 (phases X and AB) and X2 where H1 = 1
+% (phase Y, m = 15 and 20), which the smoke test checks on run 1.
 % Output filenames intentionally retain the historical g15 seed identity.
 % Different profiles are separated by directories, not by seed filenames.
     if nargin < 1 || isempty(block), block = 'AC1'; end
     block = upper(char(block));
-    coop = {'cooperative','cooperative_no_order','cooperative_shuffled','cooperative_proximity'};
+    coop = {'gated_transport','gated_mass','gated_direct','coop3'};
     switch block
         case 'AC1', defaults = coop; suites = {'C1'};   % WFG m 3,6,9 (54 instances)
         case 'AC2', defaults = coop; suites = {'C2'};   % WFG m 15,20 (36 instances)
         case 'AC3', defaults = coop; suites = {'D2'};   % DTLZ1-4,7 m 3,6,9 (30 instances)
         case 'AC4'                                      % RWMOP1-35, budgets of Kumar et al.
-            defaults = {'cooperative','repair_som','repair_global','move_som','move_global', ...
-                'move_shrink','combined'};
+            defaults = {'coop3','gated_repair_global','gated_repair_som'};
             suites = {'C5'};
         otherwise
             error('AC:Block','Unknown block %s. Use AC1, AC2, AC3 or AC4.',block);

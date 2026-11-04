@@ -7,7 +7,7 @@ function test_x1_core()
     assert(isequal(G,G') && all(diag(G)==0) && all(sum(G,2)<=1));
     assert(any(isinf(L(:))),'Disconnected components must remain disconnected.');
     conf = ones(6,1); H = x1_cooperation_weights(L(1,:),1,1,opt,conf);
-    assert(H(1)==1 && abs(sum(H)-2)<1e-12);
+    assert(H(1)==1 && sum(H) <= 2+1e-12);   % the mass cap only shrinks
     conf(:) = 0; H = x1_cooperation_weights(L(1,:),1,1,opt,conf);
     assert(isequal(H,[1,0,0,0,0,0]));
     opt.graphShuffled = true; [Ls,Gs] = x1_graph(R,[],opt);

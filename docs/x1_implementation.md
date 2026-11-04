@@ -1,6 +1,6 @@
 # Implementação experimental X1 — fase AC
 
-Estado: implementada para avaliação; nenhum ganho competitivo foi demonstrado por esta entrega. O SOM continua no treino e na geração de soluções. O protocolo e as regras de decisão estão em [phase_AC_protocol.md](phase_AC_protocol.md).
+Estado: rascunho revisado (versão 3); implementada para avaliação; nenhum ganho competitivo foi demonstrado por esta entrega. O SOM continua no treino e na geração de soluções. O protocolo e as regras de decisão estão em [phase_AC_protocol.md](phase_AC_protocol.md).
 
 ## Algoritmos disponíveis
 
@@ -38,7 +38,10 @@ Nos índices pares elegíveis do pool, o candidato proposto é `base + vetor_apr
 Os dois mecanismos têm portões fixados antes de qualquer resultado AC (`x1_options`). Um mecanismo desligado não é ajustado nem aplicado, e não sorteia números; a execução segue exatamente o perfil sem ele. O estado de cada geração fica em `Algorithm.metric.x1GateLog` (FE, movimento ligado, reparo ligado).
 
 * **Movimento:** só atua quando `Problem.FE >= moveMinFE` (padrão 300). Com o orçamento de 300 avaliações (regime caro: WFG e DTLZ), nunca atua, e `move_*` coincide com `cooperative`. No RWMOP, entra depois das primeiras 300 avaliações, quando o buffer de 300 registros já está cheio.
-* **Reparo:** `repairTrigger` em `always`, `infeasible` (padrão: só enquanto a fração factível do arquivo for no máximo `repairFeasTarget`, padrão 0, isto é, uma fase de restauração de viabilidade), `periodic` (a cada `repairPeriod` gerações, padrão 10) ou `both`. Nenhum modo atua em um problema sem violação observada, de modo que problemas sem restrições nunca acionam o reparo.
+* **Reparo:** único modo, `repairTrigger = 'infeasible'`: só atua enquanto a fração factível do arquivo for no máximo `repairFeasTarget` (padrão 0), isto é, uma fase de restauração de viabilidade. Nunca atua em um problema sem violação observada.
+* **Ordenação (`orderGate`):** a fase de ordenação só é aplicada quando a camada externa do `UniformPoint(N,m)` tem resolução H1 ≥ 2. Com H1 = 1 (N = 50 e m ≥ 15), todas as direções de uma camada são adjacentes entre si, e não há vizinhança local.
+
+Revisão de 2026-11-04 (versão 3 do protocolo): o grafo mútuo (`graphMode = 'mutual'`), os pesos de confiança (`supportWeights`) e o movimento não entram na campanha; a massa cooperativa passou a apenas reduzir. Ver [phase_AC_protocol.md](phase_AC_protocol.md).
 
 ## Reparo de restrições
 

@@ -1,34 +1,50 @@
 # Protocolo AC: cooperação, movimento e reparo da X1
 
-Versão de implementação: 2 (ver a seção seguinte); a versão 1 é mantida abaixo como registro. Data: 2026-11-04. Estado: protocolo prospectivo, sem resultados da campanha AC. Esta versão define hipóteses e critérios de avaliação; não demonstra superioridade. Mudanças posteriores ao exame dos resultados devem gerar nova versão e ser identificadas como desenvolvimento.
+Versão de implementação: 3 (ver a seção seguinte); a versão 1 é mantida abaixo como registro. Data: 2026-11-04. Estado: protocolo prospectivo, sem resultados da campanha AC. Esta versão define hipóteses e critérios de avaliação; não demonstra superioridade. Mudanças posteriores ao exame dos resultados devem gerar nova versão e ser identificadas como desenvolvimento.
 
-## Versão 2 (enxuta, 2026-11-04): esta seção prevalece sobre as demais
+## Versão 3 (2026-11-04): esta seção prevalece sobre as demais
 
-Fixada antes de qualquer execução AC. Onde as seções seguintes divergirem desta, vale esta.
+Fixada antes de qualquer execução AC. Substitui as versões 1 e 2, que ficam abaixo apenas como registro. As versões 1 e 2 vieram de um rascunho e foram revisadas antes de qualquer execução; nenhum resultado AC foi visto.
 
-**Mudanças em relação à versão 1**
-1. **Sementes 1 a 30**, as mesmas de todos os resultados do artigo. Assim, g15 (blocos C1, C2, D2, C5) e a X1 do artigo (`legacy`; fases X e AB) são reaproveitados como referência e não são rodados de novo, e a comparação com os 15 algoritmos usa as execuções já existentes. Sem os blocos de piloto, desenvolvimento e confirmação (1:10, 11:30, 31:60) nem a extensão DTLZ m = 15/20.
-2. **Movimento só com `Problem.FE >= 300`** (`moveMinFE`). Nas suítes de 300 avaliações ele nunca atua, então H-B é testada apenas no RWMOP.
-3. **Reparo só com `repairTrigger = 'infeasible'`:** atua apenas enquanto o arquivo não tiver nenhuma solução factível (fase de restauração de viabilidade). Os outros modos do código não são usados nesta fase.
-4. **Registros do RWMOP reduzidos:** objetivos em precisão simples e, no lugar das restrições, a violação total de cada avaliação (factível se e só se for no máximo 0).
+### O que a revisão descartou, e por quê
 
-**Blocos (todos com runs 1:30)**
+1. **Grafo de vizinhos mútuos com k = 4 (`graphMode = 'mutual'`).** Ele fragmenta o mapa: com N = 50, o grau médio cai para 1,7 em m = 9, 1,6 em m = 15 e 1,3 em m = 20, com 15, 10 e 17 componentes desconexas, e há nós sem vizinho em m = 9. Um ganho do perfil `cooperative` em m = 15/20 viria de desligar a cooperação, e não de melhorá-la, e o controle embaralhado manteria a mesma fragmentação. O grafo da X1 do artigo é mantido.
+2. **Massa dos vizinhos normalizada para somar exatamente 1.** A normalização também aumentava pesos: um único vizinho com peso gaussiano 0,61 passava a ser treinado com peso 1, igual ao vencedor. Agora o limite só reduz (`sum(H) > beta`).
+3. **Movimento aprendido.** Com o portão de 300 avaliações, só atuaria no RWMOP, não ataca nenhuma limitação identificada da X1 (m = 15/20 e DTLZ, ambos com 300 avaliações), e somaria cerca de 5 h de execução e um mecanismo novo sem evidência prévia. O código permanece no repositório, sem perfil na campanha.
+4. **Pesos de confiança na leitura (`supportWeights`).** Distorcem os coeficientes do NNLS sem justificativa independente. Não entram na campanha.
+5. **Modos de reparo além de `infeasible`.** Removidos do código.
+
+### O que a revisão acrescentou: o portão geométrico da ordenação
+
+Com N = 50, o `UniformPoint` usa resolução H1 = 8, 2 e 2 na camada externa para m = 3, 6 e 9, e H1 = 1 para m = 15 e 20. Com H1 = 1, cada camada é formada pelos vértices de um simplex, e todas as direções de uma camada são adjacentes entre si. Não existe vizinhança local para preservar, e a fase de ordenação vira uma média quase global. A regra (`orderGate`) aplica a ordenação apenas quando H1 ≥ 2, e depende só de N e m.
+
+**Origem da regra, declarada:** a perda da X1 em m = 15/20 (fase AB) motivou a investigação. A regra, porém, decorre da geometria da grade e não de um ajuste aos resultados. O perfil `gated` (X1 com o portão) coincide com a X1 onde H1 ≥ 2 e com a X2 da fase Y onde H1 = 1, nas mesmas sementes. Por isso ele não é rodado de novo: o smoke test verifica a igualdade exata no run 1, e os resultados de `gated` são os das fases X, AB e Y.
+
+### Blocos (runs 1 a 30)
 
 | Bloco | Instâncias | Perfis | Execuções |
 |---|---|---|---:|
-| AC1 | WFG m = 3, 6, 9 (54) | cooperative, cooperative_no_order, cooperative_shuffled, cooperative_proximity | 6.480 |
+| AC1 | WFG m = 3, 6, 9 (54) | gated_transport, gated_mass, gated_direct, coop3 | 6.480 |
 | AC2 | WFG m = 15, 20 (36) | os mesmos quatro | 4.320 |
 | AC3 | DTLZ1–4, 7, m = 3, 6, 9 (30) | os mesmos quatro | 3.600 |
-| AC4 | RWMOP1–35 (orçamentos de Kumar) | cooperative, repair_som, repair_global, move_som, move_global, move_shrink, combined | 7.350 |
+| AC4 | RWMOP1–35 (orçamentos de Kumar) | coop3, gated_repair_global, gated_repair_som | 3.150 |
 
-**Hipóteses e critérios (fixados agora)**
-- **H-A, cooperação (AC1 a AC3):** `cooperative` contra a X1 do artigo e contra g15. Critério principal: recuperar m = 15/20 (razão de IGD contra a X1 com limite superior do IC 95% abaixo de 1 e signed-rank significativo após Holm) sem perder m = 3, 6 e 9 (limite superior abaixo de 1,03 em cada m). Atribuição à topologia: `cooperative` melhor que `cooperative_shuffled` e `cooperative_proximity` (Holm); o papel da ordenação vem de `cooperative_no_order`.
-- **H-C, reparo (AC4):** nos problemas em que `cooperative` termina sem solução factível em mais da metade das execuções, aumento de pelo menos 10 pontos percentuais na taxa de execuções com solução factível final; nos demais, HV não pior (margem absoluta de 0,01). Atribuição ao SOM: `repair_som` contra `repair_global`.
-- **H-B, movimento (AC4):** `move_som` contra `cooperative` e `move_shrink` (passo menor sem direção aprendida); atribuição ao SOM contra `move_global`.
-- **Combinação:** `combined` contra `cooperative`, `repair_som` e `move_som`, apenas descritiva.
-- **Não interferência:** nas suítes de 300 avaliações, `move_som`, `repair_som` e `combined` devem coincidir exatamente com `cooperative` (verificado no smoke test).
+- `gated_transport`: transporte dos protótipos de objetivo quando ideal e nadir mudam.
+- `gated_mass`: massa total dos vizinhos limitada a 1 na fase de ordenação (só reduz).
+- `gated_direct`: só nós com solução própria nesta chamada de treino entram na leitura da célula.
+- `coop3`: as três mudanças juntas.
+- `gated_repair_*`: reparo das restrições por modelos afins, global ou com suporte do SOM, só enquanto o arquivo não tiver solução factível.
 
-Testes: signed-rank pareado por instância com Holm dentro de cada família, razão de médias geométricas com bootstrap por agrupamento sobre os problemas (10.000 reamostragens, semente 1), como nas fases anteriores. O HV do RWMOP usa a normalização fixa de `rwmop_norm.csv`, calculada como em `rescore_rwmop_y.m`, para ser comparável aos números do artigo.
+### Hipóteses e critérios (fixados agora)
+
+Referência de todas as comparações: `gated` (X1 das fases X e AB onde H1 ≥ 2; X2 da fase Y onde H1 = 1).
+
+- **H0, portão:** descritiva; `gated` contra a X1 e o g15 em todas as suítes, com os dados existentes.
+- **H-A, cooperação (AC1 a AC3):** cada um dos quatro perfis contra `gated`, com Holm sobre os quatro perfis dentro de cada suíte (WFG m = 3 a 9, WFG m = 15/20, DTLZ). Um perfil é **adotado** se (1) melhorar significativamente em pelo menos uma suíte (signed-rank pareado por instância, p de Holm < 0,05, razão de IGD com limite superior do IC 95% abaixo de 1) e (2) não piorar nenhuma (limite superior abaixo de 1,03 em cada suíte e em cada m). Havendo mais de um, prefere-se `coop3` se ele se qualificar; senão, o de menor razão média nas três suítes.
+- **H-C, reparo (AC4):** nos problemas em que `gated` termina sem solução factível em mais da metade das execuções, aumento de pelo menos 10 pontos percentuais na taxa de execuções com solução factível final; nos demais, HV não pior (margem absoluta de 0,01). Atribuição ao SOM: `gated_repair_som` contra `gated_repair_global`. Se o global empatar ou vencer, o ganho é do reparo, e não da topologia.
+- **coop3 no RWMOP:** descritivo, para completar a tabela do modelo caso ele seja adotado.
+
+Testes: signed-rank pareado por instância com Holm, razão de médias geométricas com bootstrap por agrupamento sobre os problemas (10.000 reamostragens, semente 1), como nas fases anteriores. O HV do RWMOP usa a normalização fixa de `rwmop_norm.csv`, calculada como em `rescore_rwmop_y.m`, para ser comparável aos números do artigo.
 
 ## Objetivo e alegações permitidas
 

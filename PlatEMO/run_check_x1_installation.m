@@ -1,9 +1,9 @@
 function report = run_check_x1_installation(requireRuntime)
-%RUN_CHECK_X1_INSTALLATION Static source/manifest checks of phase AC (lean version 2); zero evaluations.
+%RUN_CHECK_X1_INSTALLATION Static source/manifest checks of phase AC (version 3); zero evaluations.
 % Safe on the main PC. Does not instantiate PROBLEM/ALGORITHM or create pools.
 % Pass true to require a complete installed overlay (CASA).
     if nargin < 1, requireRuntime = false; end
-    blocks = {'AC1','AC2','AC3','AC4'}; perRun = [216,144,120,245];
+    blocks = {'AC1','AC2','AC3','AC4'}; perRun = [216,144,120,105];
     allTasks = [];
     for b = 1:numel(blocks)
         t = ac_build_tasks(blocks{b},[],1);
@@ -21,13 +21,12 @@ function report = run_check_x1_installation(requireRuntime)
         if ~isempty(o) && ~strcmp(o.repairMode,'none')
             assert(strcmp(o.repairTrigger,'infeasible'),'AC:Repair','Repair must use the trigger ''infeasible''.');
         end
-        if ~isempty(o) && ~strcmp(o.moveMode,'none')
-            assert(o.moveMinFE == 300,'AC:Movement','Movement must start at FE >= 300.');
-        end
+        assert(~isempty(o) && o.orderGate && strcmp(o.moveMode,'none') && strcmp(o.graphMode,'legacy'), ...
+            'AC:Profile','Version 3 profiles: ordering gate on, legacy graph, no movement.');
     end
     % Historical file names (hence seeds) of g15 in C1, C2, D2 and C5 are kept exactly.
     original = [names(c_build_tasks('C1')),names(c_build_tasks('C2')),names(d_build_tasks('D2')),names(c_build_tasks('C5'))];
-    fresh = arrayfun(@(b)ac_build_tasks(b{1},{'cooperative'},1),blocks,'UniformOutput',false);
+    fresh = arrayfun(@(b)ac_build_tasks(b{1},{'coop3'},1),blocks,'UniformOutput',false);
     fresh = unique(cellfun(@(t){t.seedName},num2cell([fresh{:}])));
     assert(numel(original) == 155 && isequal(sort(original),sort(fresh)),'AC:Seed', ...
         'Phase AC names differ from the historical g15 names.');

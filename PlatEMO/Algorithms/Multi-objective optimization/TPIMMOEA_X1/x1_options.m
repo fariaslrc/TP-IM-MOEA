@@ -13,18 +13,20 @@ function opt = x1_options(profile)
         'repairMode','none','repairRadius',0.5,'repairTolerance',0.1, ...
         'repairMinSamples',0,'repairPenalty',100,'repairMargin',1, ...
         'repairMaxCondition',1e8,'repairNumericalMargin',1e-8, ...
-        'moveMinFE',300,'repairTrigger','infeasible','repairPeriod',10, ...
-        'repairFeasTarget',0);
+        'moveMinFE',300,'repairTrigger','infeasible','repairFeasTarget',0, ...
+        'orderGate',false);
     % Activation gates (version 1, set before any phase AC result):
     %   moveMinFE        the movement field is fitted and applied only once Problem.FE >= moveMinFE,
     %                    so with a budget of 300 evaluations (expensive regime) it never acts and the
     %                    run is identical to the same profile without movement.
-    %   repairTrigger    'always'     every generation;
-    %                    'infeasible' only while the feasible fraction of the archive is <= repairFeasTarget
-    %                                 (0: no feasible member), i.e. a feasibility-restoration phase;
-    %                    'periodic'   every repairPeriod generations, if any violation has been observed;
-    %                    'both'       'infeasible' or 'periodic'.
-    %                    No mode acts on a problem without an observed violation (unconstrained problems).
+    %   repairTrigger    'infeasible' (the only mode): repair acts only while the feasible fraction of the
+    %                    archive is <= repairFeasTarget (0: no feasible member), i.e. a feasibility-restoration
+    %                    phase; it never acts on a problem without an observed violation.
+    %   orderGate        true: the ordering phase is skipped when the reference lattice has resolution
+    %                    H1 = 1 (every direction of a layer adjacent to every other), see TPIMMOEA_X.
+    % Profiles of version 3 (phase AC): 'gated' is X1 with orderGate; 'gated_transport', 'gated_mass'
+    % and 'gated_direct' add one change each; 'coop3' adds the three; 'gated_repair_global' and
+    % 'gated_repair_som' add the repair. The legacy graph of X1 is kept in all of them.
     if nargin == 0 || isempty(profile), profile = 'cooperative'; end
     if isstruct(profile)
         assert(isscalar(profile),'X1:Options','Options must be a scalar struct.');
@@ -38,6 +40,13 @@ function opt = x1_options(profile)
         opt.profile = profile;
         switch profile
             case {'identity','legacy','g15'}
+            case {'gated','gated_transport','gated_mass','gated_direct','coop3', ...
+                  'gated_repair_global','gated_repair_som'}
+                opt.orderGate = true;
+                if ismember(profile,{'gated_transport','coop3'}), opt.transport = true; end
+                if ismember(profile,{'gated_mass','coop3'}), opt.massBudget = 1; end
+                if ismember(profile,{'gated_direct','coop3'}), opt.supportMode = 'direct'; end
+                if startsWith(profile,'gated_repair_'), opt.repairMode = extractAfter(profile,'gated_repair_'); end
             case 'transport', opt.transport = true;
             case 'direct', opt.supportMode = 'direct';
             case 'mass', opt.massBudget = 1;
@@ -70,8 +79,7 @@ function opt = x1_options(profile)
     validateattributes(opt.learnCap,{'numeric'},{'scalar','integer','positive','finite'});
     validateattributes(opt.moveDE,{'numeric'},{'scalar','>=',0,'<=',1,'finite'});
     validateattributes(opt.moveMinFE,{'numeric'},{'scalar','>=',0});
-    assert(ismember(opt.repairTrigger,{'always','infeasible','periodic','both'}), ...
-        'X1:Options','Invalid repair trigger.');
-    validateattributes(opt.repairPeriod,{'numeric'},{'scalar','integer','positive','finite'});
+    assert(strcmp(opt.repairTrigger,'infeasible'),'X1:Options','The only repair trigger is ''infeasible''.');
+    assert(islogical(opt.orderGate) && isscalar(opt.orderGate),'X1:Options','orderGate must be logical.');
     validateattributes(opt.repairFeasTarget,{'numeric'},{'scalar','>=',0,'<',1});
 end

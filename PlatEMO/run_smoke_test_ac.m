@@ -1,14 +1,14 @@
 function run_smoke_test_ac()
-%RUN_SMOKE_TEST_AC  Installation check of phase AC (lean version 2), CASA only, about 15 min.
+%RUN_SMOKE_TEST_AC  Installation check of phase AC (version 3), CASA only, about 15 min.
 %Every line must end in OK:
-%   1. static checks (grids, seeds, gates), unit tests and the synthetic integration test;
+%   1. static checks (grids, seeds, profiles), unit tests and the synthetic integration test;
 %   2. quadprog available (repair profiles);
-%   3. reproduction: g15 and the X1 of the article (legacy) reproduce their historical run 1 on
-%      WFG4 (m = 3 and 15), DTLZ2 (m = 3) and RWMOP1, exactly;
-%   4. non-interference: with 300 evaluations, move_som and repair_som give exactly the run of
-%      cooperative (movement never starts, repair never triggers without constraints);
-%   5. timing of AC4: cooperative and combined on RWMOP1 and RWMOP30 (run 1), with the number of
-%      generations in which each gate was on; an estimate of the AC4 duration is printed.
+%   3. reproduction of run 1 of the article, exactly: g15 and X1 (legacy) on WFG4 (m = 3 and 15),
+%      DTLZ2 (m = 3) and RWMOP1; 'gated' equals X1 on WFG4 m = 3 and RWMOP1 (H1 >= 2) and X2 of
+%      phase Y on WFG4 m = 15 (H1 = 1), so 'gated' needs no campaign runs;
+%   4. non-interference: without constraints, gated_repair_som gives exactly the run of 'gated';
+%   5. timing of AC4: gated and gated_repair_som on RWMOP1 and RWMOP30 (run 1), with the number of
+%      generations in which the repair was on.
 %Writes only to Data_AC/_smoke/, deleted at the end.
 
     PlatEMORoot = fileparts(mfilename('fullpath'));
@@ -29,7 +29,9 @@ function run_smoke_test_ac()
     ref = {'AC1','WFG4',3,10,'g15',0.441626967539076; 'AC1','WFG4',3,10,'legacy',0.409261289520922;
            'AC2','WFG4',15,24,'g15',12.3740525119959; 'AC2','WFG4',15,24,'legacy',17.525456651634;
            'AC3','DTLZ2',3,10,'g15',0.175080285833024; 'AC3','DTLZ2',3,10,'legacy',0.143543680325121;
-           'AC4','RWMOP1',2,4,'g15',-2410407103.98338; 'AC4','RWMOP1',2,4,'legacy',-2390916963.13227};
+           'AC4','RWMOP1',2,4,'g15',-2410407103.98338; 'AC4','RWMOP1',2,4,'legacy',-2390916963.13227;
+           'AC1','WFG4',3,10,'gated',0.409261289520922; 'AC2','WFG4',15,24,'gated',12.748281802811;
+           'AC4','RWMOP1',2,4,'gated',-2390916963.13227};
     for r = 1 : size(ref,1)
         [s,el] = runOne(ref{r,1},ref{r,5},ref{r,2},ref{r,3},ref{r,4},smoke);
         if isempty(s), nFail = nFail + report(sprintf('%s %s m=%d run 1 reproduces the article',ref{r,5},ref{r,2},ref{r,3}),false); continue; end
@@ -38,33 +40,31 @@ function run_smoke_test_ac()
         nFail = nFail + report(sprintf('%-6s %-6s m=%-2d run 1: %.15g (expected %.15g, %.1f s)',ref{r,5},ref{r,2},ref{r,3},v,ref{r,6},el),ok);
     end
 
-    % Non-interference of the gates with 300 evaluations
-    s0 = runOne('AC1','cooperative','WFG4',3,10,smoke);
-    for prof = {'move_som','repair_som','combined'}
-        s = runOne('AC1',prof{1},'WFG4',3,10,smoke);
-        ok = ~isempty(s0) && ~isempty(s) && isequal(s.recObjs,s0.recObjs) && ~any(s.metric.x1GateLog(:,2:3),'all');
-        nFail = nFail + report(sprintf('%-11s WFG4 m=3 identical to cooperative, gates never on (300 FE)',prof{1}),ok);
-    end
+    % Non-interference of the repair without constraints
+    s0 = runOne('AC1','gated','WFG4',3,10,smoke);
+    s  = runOne('AC1','gated_repair_som','WFG4',3,10,smoke);
+    ok = ~isempty(s0) && ~isempty(s) && isequal(s.recObjs,s0.recObjs) && ~any(s.metric.x1GateLog(:,3));
+    nFail = nFail + report('gated_repair_som WFG4 m=3 identical to gated, repair never on (no constraints)',ok);
 
     % Timing of AC4 (RWMOP budgets of Kumar et al.)
-    T4 = ac_build_tasks('AC4',{'cooperative'},1);
+    T4 = ac_build_tasks('AC4',{'coop3'},1);
     tm = struct();
     for prob = {'RWMOP1','RWMOP30'}
-        for prof = {'cooperative','combined'}
+        for prof = {'gated','gated_repair_som'}
             k = find(strcmp({T4.probName},prob{1}),1);
             [s,el] = runOne('AC4',prof{1},prob{1},T4(k).M,T4(k).D,smoke);
             ok = ~isempty(s);
-            g = [0 0 0];
-            if ok && isfield(s.metric,'x1GateLog'), g = [size(s.metric.x1GateLog,1),sum(s.metric.x1GateLog(:,2:3),1)]; end
+            g = [0 0];
+            if ok && isfield(s.metric,'x1GateLog'), g = [size(s.metric.x1GateLog,1),sum(s.metric.x1GateLog(:,3))]; end
             if ok, fe = s.cfg.maxFE; feas = s.metric.finalFeasible; else, fe = NaN; feas = false; end
             tm.(prof{1}).(prob{1}) = el;
-            nFail = nFail + report(sprintf('%-11s %-7s %6d FE: %6.1f s, %d generations, movement on in %d, repair on in %d, final feasible %d', ...
-                prof{1},prob{1},fe,el,g(1),g(2),g(3),feas),ok);
+            nFail = nFail + report(sprintf('%-16s %-7s %6d FE: %6.1f s, %d generations, repair on in %d, final feasible %d', ...
+                prof{1},prob{1},fe,el,g(1),g(2),feas),ok);
         end
     end
-    if isfield(tm,'combined')
-        f = mean([tm.combined.RWMOP1/tm.cooperative.RWMOP1, tm.combined.RWMOP30/tm.cooperative.RWMOP30]);
-        fprintf('AC4 cost factor of the mechanisms (combined/cooperative): %.1fx\n',f);
+    if isfield(tm,'gated_repair_som') && isfield(tm,'gated')
+        fprintf('AC4 cost factor of the repair (gated_repair_som/gated): %.1fx\n', ...
+            mean([tm.gated_repair_som.RWMOP1/tm.gated.RWMOP1, tm.gated_repair_som.RWMOP30/tm.gated.RWMOP30]));
     end
 
     for b = {'AC1','AC2','AC3','AC4'}, run_ac(b{1}); end      % dry run: task counts only

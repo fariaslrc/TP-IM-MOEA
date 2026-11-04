@@ -227,6 +227,13 @@ classdef TPIMMOEA_X < ALGORITHM
                 kc.thetaGlob = 5*ones(1,Problem.D);
             end
 
+            % Phase AC: the ordering phase needs a lattice with local structure. With
+            % resolution H1 = 1 (UniformPoint for N <= C(M+1,M-1), e.g. N = 50 and
+            % M >= 15) every direction of a layer is adjacent to every other, so a
+            % neighbourhood cannot tell near from far regions and ordering is skipped.
+            if x1Active && xo.orderGate && LatticeResolution(Npop,M) < 2
+                nbPhase = 0;
+            end
             % Phase T: lattice of training (apart from LDis) and the nodes trained so far
             tc = struct('LDisTrain',[],'nbPhase',nbPhase,'nbGlobal',nbGlobal,'decBMU',decBMU, ...
                         'etaGlobal',etaGlobal,'search',0);
@@ -338,14 +345,7 @@ classdef TPIMMOEA_X < ALGORITHM
                         kc.x1RepairOn = false;
                         if ~strcmp(xo.repairMode,'none') && any(history.C(:) > 0)
                             feasFrac = mean(all(Archive.cons <= 0,2));
-                            trigInf = feasFrac <= xo.repairFeasTarget;
-                            trigPer = mod(x1Gen-1,xo.repairPeriod) == 0;
-                            switch xo.repairTrigger
-                                case 'always',     kc.x1RepairOn = true;
-                                case 'infeasible', kc.x1RepairOn = trigInf;
-                                case 'periodic',   kc.x1RepairOn = trigPer;
-                                case 'both',       kc.x1RepairOn = trigInf || trigPer;
-                            end
+                            kc.x1RepairOn = feasFrac <= xo.repairFeasTarget;   % trigger 'infeasible'
                         end
                         Algorithm.metric.x1GateLog(end+1,:) = [Problem.FE,kc.x1MoveOn,kc.x1RepairOn];
                         if kc.x1MoveOn || kc.x1RepairOn
@@ -535,6 +535,14 @@ function c = GuardedMean(X)
         X = X(dist <= 2*median(dist) + 1e-12,:);
     end
     c = mean(X,1);
+end
+
+function H1 = LatticeResolution(N,M)
+% Resolution of the outer layer of UniformPoint(N,M) (same rule as PlatEMO).
+    H1 = 1;
+    while nchoosek(H1+M,M-1) <= N
+        H1 = H1 + 1;
+    end
 end
 
 function LDis = ReferenceGraph(RefN,M)
