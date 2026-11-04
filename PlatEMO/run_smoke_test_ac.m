@@ -55,7 +55,7 @@ function run_smoke_test_ac()
             [s,el] = runOne('AC4',prof{1},prob{1},T4(k).M,T4(k).D,smoke);
             ok = ~isempty(s);
             g = [0 0];
-            if ok && isfield(s.metric,'x1GateLog'), g = [size(s.metric.x1GateLog,1),sum(s.metric.x1GateLog(:,3))]; end
+            if ok && isfield(s.metric,'x1GateLog'), g = [size(s.metric.x1GateLog,1),sum(s.metric.x1GateLog(:,3))]; elseif ok, g = [NaN 0]; end
             if ok, fe = s.cfg.maxFE; feas = s.metric.finalFeasible; else, fe = NaN; feas = false; end
             tm.(prof{1}).(prob{1}) = el;
             nFail = nFail + report(sprintf('%-16s %-7s %6d FE: %6.1f s, %d generations, repair on in %d, final feasible %d', ...
@@ -80,6 +80,9 @@ function [s,el] = runOne(block,profile,prob,M,D,smoke)
     t = T(k);
     [~,name] = fileparts(t.outFile);
     t.outFile = fullfile(smoke,profile,[name '.mat']);
+    % A run repeated within the smoke test (e.g. 'gated' as reference and as timing) is run again,
+    % not skipped as already complete, so that its score and its time are both measured.
+    if exist(t.outFile,'file') == 2, delete(t.outFile); end
     [status,el,note] = run_one_ac_task(t);
     if ~strcmp(status,'OK'), fprintf('  %s %s: %s %s\n',profile,prob,status,note); return; end
     s = load(t.outFile);
