@@ -26,7 +26,8 @@ function opt = x1_options(profile)
     %                    H1 = 1 (every direction of a layer adjacent to every other), see TPIMMOEA_X.
     % Profiles of version 3 (phase AC): 'gated' is X1 with orderGate; 'gated_transport', 'gated_mass'
     % and 'gated_direct' add one change each; 'coop3' adds the three; 'gated_repair_global' and
-    % 'gated_repair_som' add the repair. The legacy graph of X1 is kept in all of them.
+    % 'gated_repair_som' add the repair; 'gated_mass_repair_global' (phase AC, block AC5) is
+    % gated_mass with the global repair. The legacy graph of X1 is kept in all of them.
     if nargin == 0 || isempty(profile), profile = 'cooperative'; end
     if isstruct(profile)
         assert(isscalar(profile),'X1:Options','Options must be a scalar struct.');
@@ -41,12 +42,12 @@ function opt = x1_options(profile)
         switch profile
             case {'identity','legacy','g15'}
             case {'gated','gated_transport','gated_mass','gated_direct','coop3', ...
-                  'gated_repair_global','gated_repair_som'}
+                  'gated_repair_global','gated_repair_som','gated_mass_repair_global'}
                 opt.orderGate = true;
                 if ismember(profile,{'gated_transport','coop3'}), opt.transport = true; end
-                if ismember(profile,{'gated_mass','coop3'}), opt.massBudget = 1; end
+                if ismember(profile,{'gated_mass','coop3','gated_mass_repair_global'}), opt.massBudget = 1; end
                 if ismember(profile,{'gated_direct','coop3'}), opt.supportMode = 'direct'; end
-                if startsWith(profile,'gated_repair_'), opt.repairMode = extractAfter(profile,'gated_repair_'); end
+                if contains(profile,'repair_'), opt.repairMode = extractAfter(profile,'repair_'); end
             case 'transport', opt.transport = true;
             case 'direct', opt.supportMode = 'direct';
             case 'mass', opt.massBudget = 1;

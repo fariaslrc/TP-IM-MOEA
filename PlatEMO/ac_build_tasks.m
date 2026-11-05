@@ -3,6 +3,7 @@ function tasks = ac_build_tasks(block,profiles,runs)
 %   AC1 WFG m 3,6,9 (54)  AC2 WFG m 15,20 (36)  AC3 DTLZ m 3,6,9 (30): the three cooperation changes,
 %       one at a time and together (coop3), on X1 with the ordering gate ('gated')
 %   AC4 RWMOP1-35: coop3 and the repair (trigger 'infeasible'), global and through the SOM
+%   AC5 RWMOP1-35: gated_mass (adopted in AC1-AC3) alone and with the global repair
 % Default runs 1:30, the seeds of every result of the article. The reference 'gated' is not run:
 % it equals X1 where the lattice has resolution H1 >= 2 (phases X and AB) and X2 where H1 = 1
 % (phase Y, m = 15 and 20), which the smoke test checks on run 1.
@@ -18,8 +19,11 @@ function tasks = ac_build_tasks(block,profiles,runs)
         case 'AC4'                                      % RWMOP1-35, budgets of Kumar et al.
             defaults = {'coop3','gated_repair_global','gated_repair_som'};
             suites = {'C5'};
+        case 'AC5'                                      % RWMOP1-35: the profile adopted in AC1-AC3, alone and with the repair
+            defaults = {'gated_mass','gated_mass_repair_global'};
+            suites = {'C5'};
         otherwise
-            error('AC:Block','Unknown block %s. Use AC1, AC2, AC3 or AC4.',block);
+            error('AC:Block','Unknown block %s. Use AC1 to AC5.',block);
     end
     if nargin < 2 || isempty(profiles), profiles = defaults; end
     if ischar(profiles) || isstring(profiles), profiles = cellstr(profiles); end

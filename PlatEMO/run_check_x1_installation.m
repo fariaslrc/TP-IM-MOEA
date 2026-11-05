@@ -3,7 +3,7 @@ function report = run_check_x1_installation(requireRuntime)
 % Safe on the main PC. Does not instantiate PROBLEM/ALGORITHM or create pools.
 % Pass true to require a complete installed overlay (CASA).
     if nargin < 1, requireRuntime = false; end
-    blocks = {'AC1','AC2','AC3','AC4'}; perRun = [216,144,120,105];
+    blocks = {'AC1','AC2','AC3','AC4','AC5'}; perRun = [216,144,120,105,70];
     allTasks = [];
     for b = 1:numel(blocks)
         t = ac_build_tasks(blocks{b},[],1);
@@ -36,7 +36,7 @@ function report = run_check_x1_installation(requireRuntime)
     assert(~strcmp(h,ac_task_identity(modified,source.digest)),'AC:Hash','Parameter mutation did not alter identity.');
     report = struct('passed',true,'zeroEvaluations',true,'tasksPerRun',perRun, ...
         'source',source,'exampleIdentity',id,'exampleHash',h);
-    fprintf('AC static checks passed: AC1-AC4 grids (%s per run), 45 parameters, budget flag, gates, seed parity and task hashes. ZERO evaluations.\n', ...
+    fprintf('AC static checks passed: AC1-AC5 grids (%s per run), 45 parameters, budget flag, gates, seed parity and task hashes. ZERO evaluations.\n', ...
         mat2str(perRun));
     if ~source.ready, fprintf('Full runtime not installed on path: %s\n',strjoin(source.missing,', ')); end
 end

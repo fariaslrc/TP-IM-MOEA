@@ -46,6 +46,19 @@ Referência de todas as comparações: `gated` (X1 das fases X e AB onde H1 ≥ 
 
 Testes: signed-rank pareado por instância com Holm, razão de médias geométricas com bootstrap por agrupamento sobre os problemas (10.000 reamostragens, semente 1), como nas fases anteriores. O HV do RWMOP usa a normalização fixa de `rwmop_norm.csv`, calculada como em `rescore_rwmop_y.m`, para ser comparável aos números do artigo.
 
+### Adendo de 2026-11-05: bloco AC5 (fixado antes de rodar)
+
+Resultado de AC1 a AC4 (análise em `c_analysis/analyze_ac.py`): pela regra acima, `gated_mass` é adotado (DTLZ 0,973, IC 95% [0,958, 0,989], p de Holm 0,013; neutro no WFG). O reparo tornou factíveis todas as execuções do RWMOP30 a 35, e `gated_repair_som` empatou com `gated_repair_global` nos 35 problemas, então o reparo entra na versão global. Como `gated_mass` não foi rodado no RWMOP, o bloco AC5 completa o modelo:
+
+| Bloco | Instâncias | Perfis | Execuções |
+|---|---|---|---:|
+| AC5 | RWMOP1–35 | gated_mass, gated_mass_repair_global | 2.100 |
+
+Critérios:
+- **`gated_mass` no RWMOP contra `gated`:** não inferior se nenhum problema perder mais de 0,01 de HV médio e o signed-rank não for significativamente desfavorável (5%).
+- **`gated_mass_repair_global` contra `gated_repair_global`:** mesma regra de HV, e a taxa de execuções com solução factível final no RWMOP30 a 35 não pode cair.
+- **Modelo final:** se os dois critérios passarem, o modelo é a X1 com o portão da ordenação, a massa limitada e o reparo global. Se `gated_mass` falhar no RWMOP, a massa limitada não entra, e o modelo é a X1 com o portão e o reparo global.
+
 ## Objetivo e alegações permitidas
 
 Testar se a estrutura do SOM produz benefício mensurável no aprendizado e na reprodução, mantendo o SOM central conforme a orientação de Aluizio. A arquitetura pode mudar. O objetivo competitivo é melhorar os resultados nos estratos WFG com m = 3, 6, 9, 15 e 20, DTLZ e RWMOP, sem substituir evidência por uma promessa de liderança universal.
