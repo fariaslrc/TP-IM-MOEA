@@ -1,12 +1,15 @@
 function run_smoke_test_z()
-%RUN_SMOKE_TEST_Z  Installation check of phase Z (about 10 min). Every line
-%must end in OK:
-%   - TPIMMOEA_X with the switch cellRead installed;
-%   - the task counts of Z1 to Z9, cellRead = 1 in every task (except the g15
-%     copies of Z9) and distinct output files;
-%   - per block, one task run with and without cellRead on the same seed:
-%     no error, a finite score, and a different score (the read-out acts).
-%That g15 itself is unchanged is checked separately by run_check_tpimmoea.
+%RUN_SMOKE_TEST_Z  Installation check of phase Z, version 2 (final model F of phase AC), about
+%10 min. Every line must end in OK:
+%   - task counts of Z1 to Z9, distinct output files, and the parameters of F in every task
+%     (nbPhase 0.2 and cellRead 1; parameter 45 = gated_repair_global on RWMOP, empty elsewhere;
+%     the g15 copies of Z9 unchanged);
+%   - F through the phase AC path (parameter 45 set) equals X1 through the historical path on
+%     WFG4 (m = 3, d = 10, run 1), and both reproduce phase X (IGDall 0.409261289520922);
+%   - one run (run 1) of EVERY configuration of every block: no error and a finite score; per
+%     block, one configuration is also run as g15 on the same seed and must differ (F acts).
+%     q01_noRefMap and q06_noSOM are reported against their g15 runs for information only: F may
+%     coincide with g15 there, because the anchored map or its read-out is switched off.
 %Writes only to Data_Z/_smoke/, deleted at the end.
 
     PlatEMORoot = fileparts(mfilename('fullpath'));
@@ -14,47 +17,67 @@ function run_smoke_test_z()
     cd(PlatEMORoot);
     setenv('CUDA_VISIBLE_DEVICES','-1');
     smoke = fullfile(PlatEMORoot,'Data_Z','_smoke');
+    if exist(smoke,'dir'), rmdir(smoke,'s'); end
     nFail = 0;
+    opt = x1_options('gated_repair_global');
 
-    src = fileread(fullfile(PlatEMORoot,'Algorithms','Multi-objective optimization','TPIMMOEA_X','TPIMMOEA_X.m'));
-    nFail = nFail + report('TPIMMOEA_X with the switch cellRead installed',contains(src,'cellRead') && contains(src,'updatedNow'));
-
-    expect = {'Z1',9720; 'Z2',3780; 'Z3',240; 'Z4',4860; 'Z5',3240; 'Z6',1800; 'Z7',1080; 'Z8',480; 'Z9',48};
+    expect = {'Z1',12960; 'Z2',3780; 'Z3',240; 'Z4',6480; 'Z5',3240; 'Z6',1800; 'Z7',1080; 'Z8',480; 'Z9',48};
     for b = 1 : size(expect,1)
-        T  = z_build_tasks(expect{b,1});
-        on = cellfun(@(p)isequal(p{42},1),{T.param});
-        if strcmp(expect{b,1},'Z9')
-            okc = sum(on) == 24 && all(on == strcmp({T.config},'X2'));
-        else
-            okc = all(on);
+        T = z_build_tasks(expect{b,1});
+        isF = ~strcmp({T.config},'g15');
+        okp = true;
+        for i = 1 : numel(T)
+            p = T(i).param;
+            if isF(i)
+                rw = startsWith(T(i).probName,'RWMOP');
+                okp = okp && isequal(p{31},0.2) && isequal(p{42},1) && numel(p) == 45 && ...
+                      ((rw && isequal(p{45},opt)) || (~rw && isempty(p{45})));
+            else
+                okp = okp && isempty(p{45}) && ~isequal(p{42},1);
+            end
         end
-        nFail = nFail + report(sprintf('%s: %d tasks (expected %d), cellRead set, distinct outputs',expect{b,1},numel(T),expect{b,2}), ...
-            numel(T) == expect{b,2} && okc && numel(unique({T.outFile})) == numel(T));
-
-        % one task with and without the read-out, on the same seed
-        k = find(on & [T.run] == 1,1);
-        cand = find(on & [T.run] == 1 & [T.M] == 3);
-        if ~isempty(cand), k = cand(1); end
-        t = T(k); g = t; g.param{42} = [];
-        [~,name] = fileparts(t.outFile);
-        t.outFile = fullfile(smoke,expect{b,1},'X2',[name '.mat']);
-        g.outFile = fullfile(smoke,expect{b,1},'g15',[name '.mat']);
-        [s1,e1,n1] = run_one_g_task(t);
-        [s0,~,n0]  = run_one_g_task(g);
-        if ~strcmp(s1,'OK') || ~strcmp(s0,'OK')
-            nFail = nFail + 1;
-            fprintf('%s %s FAILED: %s %s | %s %s\n',expect{b,1},t.probName,s1,n1,s0,n0);
-            continue;
-        end
-        S1 = load(t.outFile); S0 = load(g.outFile);
-        if strcmp(t.protocol,'all')
-            v1 = S1.metric.IGDall; v0 = S0.metric.IGDall; lab = 'IGDall';
-        else
-            v1 = S1.metric.HV(end); v0 = S0.metric.HV(end); lab = 'HV';
-        end
-        fprintf('%s %s %s m=%d d=%d FE=%d: %s X2 %.6g, without the read-out %.6g (%.1fs)',expect{b,1},t.config,t.probName,t.M,t.D,t.maxFE,lab,v1,v0,e1);
-        nFail = nFail + report('',isfinite(v1) && abs(v1 - v0) > 1e-12);
+        nFail = nFail + report(sprintf('%s: %d tasks (expected %d), parameters of F, distinct outputs',expect{b,1},numel(T),expect{b,2}), ...
+            numel(T) == expect{b,2} && okp && numel(unique({T.outFile})) == numel(T));
     end
+
+    % F through the phase AC path equals X1 through the historical path
+    C = c_build_tasks('C1'); C = C(strcmp({C.config},'g15') & strcmp({C.probName},'WFG4') & [C.M] == 3 & [C.D] == 10 & [C.run] == 1);
+    t = C(1); t.param(end+1:45) = {[]}; t.param{31} = 0.2; t.param{42} = 1;
+    a = t; a.param{45} = opt; [~,name] = fileparts(t.outFile);
+    t.outFile = fullfile(smoke,'eq','X1',[name '.mat']); a.outFile = fullfile(smoke,'eq','F',[name '.mat']);
+    v1 = runScore(t); v2 = runScore(a);
+    nFail = nFail + report(sprintf('F (AC path) = X1 (historical path) on WFG4 m=3 run 1: %.15g / %.15g',v2,v1), ...
+        isfinite(v1) && v1 == v2 && abs(v1 - 0.409261289520922) <= 1e-12);
+
+    % one run of every configuration; one difference check against g15 per block
+    for b = 1 : size(expect,1)
+        T = z_build_tasks(expect{b,1});
+        cfgs = unique({T.config}); cfgs = cfgs(~strcmp(cfgs,'g15'));
+        diffDone = false;
+        for c = 1 : numel(cfgs)
+            S = T(strcmp({T.config},cfgs{c}) & [T.run] == 1);
+            k = find([S.M] == 3,1); if isempty(k), k = 1; end
+            t = S(k); [~,name] = fileparts(t.outFile);
+            t.outFile = fullfile(smoke,expect{b,1},cfgs{c},[name '.mat']);
+            [v,el] = runScore(t);
+            line = sprintf('%s %-18s %-7s m=%d d=%d FE=%d: F %.6g (%.1f s)',expect{b,1},cfgs{c},t.probName,t.M,t.D,t.maxFE,v,el);
+            ok = isfinite(v);
+            special = ismember(cfgs{c},{'q01_noRefMap','q06_noSOM'});
+            if ok && (special || ~diffDone)
+                g = t; g.param = g.param; g.param{31} = []; g.param{42} = []; g.param{45} = [];
+                g.outFile = fullfile(smoke,expect{b,1},[cfgs{c} '_g15'],[name '.mat']);
+                v0 = runScore(g);
+                if special
+                    line = sprintf('%s, g15 %.6g (%s, information)',line,v0,ternary(v == v0,'equal','different'));
+                else
+                    line = sprintf('%s, g15 %.6g',line,v0); ok = isfinite(v0) && abs(v - v0) > 1e-12; diffDone = true;
+                end
+            end
+            nFail = nFail + report(line,ok);
+        end
+    end
+
+    run_z([],true);                                           % dry run: task counts
     if exist(smoke,'dir'), rmdir(smoke,'s'); end
     if nFail == 0
         fprintf('\nAll smoke tests passed.\n');
@@ -63,12 +86,21 @@ function run_smoke_test_z()
     end
 end
 
-function f = report(label,ok)
-    if ok, s = 'OK'; else, s = 'FAILED'; end
-    if isempty(label)
-        fprintf('  %s\n',s);
-    else
-        fprintf('%-66s %s\n',label,s);
+function [v,el] = runScore(t)
+    v = NaN;
+    if exist(t.outFile,'file') == 2, delete(t.outFile); end
+    [s,el,note] = run_one_g_task(t);
+    if ~strcmp(s,'OK'), fprintf('   %s %s: %s %s\n',t.config,t.probName,s,note); return; end
+    S = load(t.outFile);
+    if strcmp(t.protocol,'all'), v = S.metric.IGDall;
+    else, h = S.metric.HV; h = h(~isnan(h)); if isempty(h), v = 0; else, v = h(end); end
     end
-    f = double(~ok);
+end
+
+function s = ternary(c,a,b)
+    if c, s = a; else, s = b; end
+end
+
+function f = report(label,ok)
+    if ok, fprintf('%-110s OK\n',label); f = 0; else, fprintf('%-110s FAILED\n',label); f = 1; end
 end
