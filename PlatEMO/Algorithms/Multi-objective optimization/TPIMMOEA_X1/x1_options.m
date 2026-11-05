@@ -14,7 +14,8 @@ function opt = x1_options(profile)
         'repairMinSamples',0,'repairPenalty',100,'repairMargin',1, ...
         'repairMaxCondition',1e8,'repairNumericalMargin',1e-8, ...
         'moveMinFE',300,'repairTrigger','infeasible','repairFeasTarget',0, ...
-        'orderGate',false);
+        'orderGate',false,'nicheReach',false,'nicheReachT',2,'nicheReachAge',5, ...
+        'gapRead',false,'gapReadShuf',false);
     % Activation gates (version 1, set before any phase AC result):
     %   moveMinFE        the movement field is fitted and applied only once Problem.FE >= moveMinFE,
     %                    so with a budget of 300 evaluations (expensive regime) it never acts and the
@@ -24,6 +25,18 @@ function opt = x1_options(profile)
     %                    phase; it never acts on a problem without an observed violation.
     %   orderGate        true: the ordering phase is skipped when the reference lattice has resolution
     %                    H1 = 1 (every direction of a layer adjacent to every other), see TPIMMOEA_X.
+    %   nicheReach       (phase AD, proposal A) a reference direction that received nicheReachT evaluated
+    %                    candidates aimed at it as an empty niche, none of which landed in it, is treated as
+    %                    unreachable for nicheReachAge generations: it leaves the empty-niche filling and loses
+    %                    the empty-niche priority of the prescreening. Any evaluated solution landing in it
+    %                    revives it at once.
+    %   gapRead          (phase AD, proposal B) a graph neighbour k of the parent's node j enters the cell
+    %                    read-out only if a nondominated archive member lies on the arc between the
+    %                    directions of j and k (angle to their bisector <= half the angle j-k), i.e. if the
+    %                    archive shows the front continuous between the two regions.
+    %   gapReadShuf      control of gapRead: the same number of graph edges is cut, chosen at random.
+    % Profiles of phase AD (final model F = gated_repair_global): 'final_A', 'final_B', 'final_AB'
+    % and the control 'final_Brand'.
     % Profiles of version 3 (phase AC): 'gated' is X1 with orderGate; 'gated_transport', 'gated_mass'
     % and 'gated_direct' add one change each; 'coop3' adds the three; 'gated_repair_global' and
     % 'gated_repair_som' add the repair; 'gated_mass_repair_global' (phase AC, block AC5) is
@@ -48,6 +61,11 @@ function opt = x1_options(profile)
                 if ismember(profile,{'gated_mass','coop3','gated_mass_repair_global'}), opt.massBudget = 1; end
                 if ismember(profile,{'gated_direct','coop3'}), opt.supportMode = 'direct'; end
                 if contains(profile,'repair_'), opt.repairMode = extractAfter(profile,'repair_'); end
+            case {'final_A','final_B','final_AB','final_Brand'}
+                opt.orderGate = true; opt.repairMode = 'global';
+                if ismember(profile,{'final_A','final_AB'}), opt.nicheReach = true; end
+                if ismember(profile,{'final_B','final_AB','final_Brand'}), opt.gapRead = true; end
+                if strcmp(profile,'final_Brand'), opt.gapReadShuf = true; end
             case 'transport', opt.transport = true;
             case 'direct', opt.supportMode = 'direct';
             case 'mass', opt.massBudget = 1;
@@ -82,5 +100,9 @@ function opt = x1_options(profile)
     validateattributes(opt.moveMinFE,{'numeric'},{'scalar','>=',0});
     assert(strcmp(opt.repairTrigger,'infeasible'),'X1:Options','The only repair trigger is ''infeasible''.');
     assert(islogical(opt.orderGate) && isscalar(opt.orderGate),'X1:Options','orderGate must be logical.');
+    assert(islogical(opt.nicheReach) && islogical(opt.gapRead) && islogical(opt.gapReadShuf), ...
+        'X1:Options','nicheReach, gapRead and gapReadShuf must be logical.');
+    validateattributes(opt.nicheReachT,{'numeric'},{'scalar','integer','positive'});
+    validateattributes(opt.nicheReachAge,{'numeric'},{'scalar','integer','positive'});
     validateattributes(opt.repairFeasTarget,{'numeric'},{'scalar','>=',0,'<',1});
 end

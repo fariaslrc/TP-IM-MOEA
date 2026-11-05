@@ -275,6 +275,12 @@ classdef TPIMMOEA_X < ALGORITHM
                 end
                 kc.x1MoveState.radius = xo.moveRadius*ones(numNodes,1);
                 kc.x1MoveOn = false; kc.x1RepairOn = false; x1Gen = 0;
+                % Phase AD: state of the unreachable niches (proposal A) and the private stream of
+                % the random-cut control of proposal B (seeded from the initial design, so the main
+                % random stream of the optimizer is not touched)
+                kc.x1Dead = false(size(RefN,1),1); kc.x1Fail = zeros(size(RefN,1),1);
+                kc.x1DeadAt = zeros(size(RefN,1),1); kc.x1NRgen = 0;
+                kc.x1PrivSeed = mod(floor(1e6*sum(abs(Population.decs(:)))),2^31-1);
                 Algorithm.metric.x1GateLog = zeros(0,3);     % [FE, movement on, repair on]
                 Algorithm.metric.x1Options = xo;
                 Algorithm.metric.x1GraphLog = zeros(0,6);
@@ -535,6 +541,21 @@ function c = GuardedMean(X)
         X = X(dist <= 2*median(dist) + 1e-12,:);
     end
     c = mean(X,1);
+end
+
+function C = GapContinuity(A,RefN,FnDir)
+% Phase AD, proposal B: edge j-k of A is kept when some nondominated direction in FnDir lies within half
+% the angle j-k from the bisector of j and k, i.e. on the arc between the two directions. (A quarter of
+% the angle, the first design, cut most edges of continuous fronts with an archive of 50-100 points.)
+    n = size(RefN,1); C = false(n);
+    [I,J] = find(triu(A,1));
+    for e = 1:numel(I)
+        a = RefN(I(e),:); b = RefN(J(e),:);
+        th  = acos(min(1,max(-1,a*b')));
+        bis = (a + b)/max(norm(a + b),1e-12);
+        ok  = any(FnDir*bis' >= cos(th/2));
+        C(I(e),J(e)) = ok; C(J(e),I(e)) = ok;
+    end
 end
 
 function H1 = LatticeResolution(N,M)
@@ -815,11 +836,30 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             if xo.supportWeights, A1c = kc.x1WeightedG > 0; end
         end
     end
+    nGapCut = 0;
+    if crOn && x1Active && xo.gapRead
+        % Phase AD, proposal B: keep the edge j-k in the cell only if a nondominated member lies
+        % on the arc between the two directions (the front is continuous there)
+        A0  = A1c;
+        A1c = A1c & GapContinuity(A1c,RefN,FnDir);
+        nGapCut = nnz(triu(A0 & ~A1c,1));
+        if xo.gapReadShuf && nGapCut > 0
+            % control: the same number of edges cut, chosen at random (private stream)
+            [I,J] = find(triu(A0,1));
+            rs = RandStream('mt19937ar','Seed',mod(kc.x1PrivSeed + 7919*(kc.x1NRgen+1),2^31-1));
+            cut = randperm(rs,numel(I),nGapCut);
+            A1c = A0;
+            for e = cut, A1c(I(e),J(e)) = false; A1c(J(e),I(e)) = false; end
+        end
+    end
     emptyN = [];
     if niche
         nNodes   = size(RefN,1);
         occupied = accumarray(assocND,1,[nNodes 1])' > 0;
         emptyN   = find(~occupied);
+        if x1Active && xo.nicheReach
+            emptyN = emptyN(~kc.x1Dead(emptyN));         % phase AD, proposal A: skip unreachable niches
+        end
         d1  = sum(Fnorm.*RefN(assocND,:),2);
         d2  = sqrt(max(sum(Fnorm.^2,2) - d1.^2,0));
         rep = zeros(1,nNodes);
@@ -838,6 +878,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     if isfield(kc,'nPool') && ~isempty(kc.nPool), nCand = kc.nPool; end   % phase AA: same pool, one evaluated
     OffDec   = zeros(nCand,D);
     candNode = zeros(nCand,1);      % map region each candidate was generated for (refMap)
+    candFill = false(nCand,1);      % phase AD: the candidate was generated to fill an empty niche
     candStat = nan(nCand,5);        % phase U diagnostics of the base point (kc.instr)
     cellStat = nan(nCand,3);        % phase X: [residual, weight on the neighbours, nodes in the cell - 1]
     if x1Active
@@ -1051,6 +1092,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
         end
         OffDec(i,:)  = u;
         candNode(i)  = srcNode;
+        candFill(i)  = useNiche;
         if x1Active && ~useNiche, parentIndex(i) = idxP; end
     end
 
@@ -1087,6 +1129,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             chosen  = order(1:min(batchSize,nCand));
             PredSel = zeros(numel(chosen),M); SdSel = PredSel;
         else
+            if x1Active, kc.x1PreEmpty = []; kc.x1PreNiche = []; end   % phase AD: no stale niche targets
             [chosen,PredSel,SdSel,kc] = Prescreen(Problem,Archive,W,LDis,OffDec,batchSize,ideal,nadir, ...
                                                   preModel,RefN,infillD,kc);
         end
@@ -1126,6 +1169,30 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             'repairEvaluated',sum(repairApplied(ev)),'repairDuplicateReverts',repairRejectedDuplicate, ...
             'repairMeanRMS',mean(repairStep(repairApplied),'omitnan'), ...
             'radiusMean',mean(kc.x1MoveState.radius));
+        if xo.nicheReach
+            % Phase AD, proposal A: a niche aimed at as empty and missed counts a failure; any
+            % evaluated solution landing in a niche revives it; dead niches retry after nicheReachAge
+            kc.x1NRgen = kc.x1NRgen + 1; g = kc.x1NRgen;
+            rev = kc.x1Dead & (g - kc.x1DeadAt >= xo.nicheReachAge);
+            kc.x1Dead(rev) = false; kc.x1Fail(rev) = 0;
+            Fo = (Offspring.objs - ideal)./(nadir - ideal + 1e-12);
+            [~,tn] = max((Fo./max(vecnorm(Fo,2,2),1e-12))*RefN',[],2);
+            intended = zeros(numel(ev),1);
+            fl = candFill(ev); intended(fl) = candNode(ev(fl));
+            if pre > 1 && isfield(kc,'x1PreEmpty') && numel(kc.x1PreEmpty) >= numel(ev)
+                pe = kc.x1PreEmpty(:); pn = kc.x1PreNiche(:);
+                sl = ~fl & pe(1:numel(ev)); intended(sl) = pn(sl);
+            end
+            kc.x1Fail(tn) = 0; kc.x1Dead(tn) = false;
+            for q = find(intended > 0 & intended ~= tn)'
+                t = intended(q); kc.x1Fail(t) = kc.x1Fail(t) + 1;
+                if kc.x1Fail(t) >= xo.nicheReachT, kc.x1Dead(t) = true; kc.x1DeadAt(t) = g; end
+            end
+        elseif xo.gapRead
+            kc.x1NRgen = kc.x1NRgen + 1;                % generation counter of the random-cut control
+        end
+        kc.x1GenerationDiag.deadNiches = sum(kc.x1Dead);
+        kc.x1GenerationDiag.gapCut = nGapCut;
         kc.x1GenerationDiag.movementOn = kc.x1MoveOn;
         kc.x1GenerationDiag.repairOn = kc.x1RepairOn;
         if kc.x1RepairOn
@@ -1353,6 +1420,12 @@ function [chosen,PredSel,SdSel,kc] = Prescreen(Problem,Archive,W,LDis,Cand,B,ide
         end
         gain = bestA(nichC) - pbiC;
         gain(~isfinite(bestA(nichC))) = 1e6 - pbiC(~isfinite(bestA(nichC)));
+        nrOn = isfield(kc,'x1Opt') && kc.x1Opt.nicheReach;
+        if nrOn
+            % phase AD, proposal A: an unreachable empty niche loses the empty-niche priority
+            deadC = ~isfinite(bestA(nichC)) & kc.x1Dead(nichC);
+            gain(deadC) = -pbiC(deadC);
+        end
         improve = gain > 0;
         [~,order] = sortrows([double(pCV > 0), pCV, double(~improve), -gain]);
         order  = order(avail(order));
@@ -1370,6 +1443,9 @@ function [chosen,PredSel,SdSel,kc] = Prescreen(Problem,Archive,W,LDis,Cand,B,ide
             if ~ismember(c,chosen)
                 chosen(end+1) = c; %#ok<AGROW>
             end
+        end
+        if nrOn
+            kc.x1PreNiche = nichC(chosen); kc.x1PreEmpty = ~isfinite(bestA(nichC(chosen)));
         end
     else
         FrontNo = NDSort([ArcF;PredF],[ArcC;PredC],inf);

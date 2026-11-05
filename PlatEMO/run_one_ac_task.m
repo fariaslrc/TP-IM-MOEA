@@ -142,7 +142,7 @@ function [X,cols,reasons] = flattenDiagnostics(D)
 %Per-generation X1 diagnostics as a numeric matrix (a cell of structs is slow and large in MAT files).
     cols = {'FE','generated','evaluated','movementGenerated','movementEvaluated','movementMeanRMS', ...
         'repairAttempted','repairGenerated','repairEvaluated','repairDuplicateReverts','repairMeanRMS', ...
-        'radiusMean','movementOn','repairOn'};
+        'radiusMean','movementOn','repairOn','deadNiches','gapCut'};
     X = nan(numel(D),numel(cols)); reasons = struct('reason',{{}},'count',[]);
     for g = 1:numel(D)
         for c = 1:numel(cols)
