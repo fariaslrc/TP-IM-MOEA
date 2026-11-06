@@ -280,7 +280,7 @@ classdef TPIMMOEA_X < ALGORITHM
                 % random stream of the optimizer is not touched)
                 kc.x1Dead = false(size(RefN,1),1); kc.x1Fail = zeros(size(RefN,1),1);
                 kc.x1DeadAt = zeros(size(RefN,1),1); kc.x1NRgen = 0;
-                kc.x1PrivSeed = mod(floor(1e6*sum(abs(Population.decs(:)))),2^31-1);
+                X0 = Population.decs; kc.x1PrivSeed = mod(floor(1e6*sum(abs(X0(:)))),2^31-1);
                 Algorithm.metric.x1GateLog = zeros(0,3);     % [FE, movement on, repair on]
                 Algorithm.metric.x1Options = xo;
                 Algorithm.metric.x1GraphLog = zeros(0,6);
