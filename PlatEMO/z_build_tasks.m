@@ -24,6 +24,8 @@ function tasks = z_build_tasks(block)
 %   Z8  population size, N = 30 and 100 (block I1)                           480
 %   Z9  time: g15 and F on the 24 TP-IM-MOEA tasks of block D1, shuffled
 %       together and run with 4 workers, for the cost ratio F/g15             48
+%   Z10 clean ablation without the SOM in reproduction (block K1, topo = 4;
+%       added after the first analysis of phase Z)                          1,620
 %
 %   Output: Data_Z/<block>/<config>/<name>.mat.
 
@@ -38,7 +40,8 @@ function tasks = z_build_tasks(block)
         case 'Z7', T = h_build_tasks('H1');
         case 'Z8', T = i_build_tasks('I1');
         case 'Z9', T = d_build_tasks('D1');
-        otherwise, error('Unknown block %s. Use Z1..Z9.',block);
+        case 'Z10', T = k_build_tasks('K1');            % clean ablation without the SOM (topo = 4)
+        otherwise, error('Unknown block %s. Use Z1..Z10.',block);
     end
     T = T(strcmp({T.algName},'TPIMMOEA_X'));
     if strcmp(block,'Z9')
