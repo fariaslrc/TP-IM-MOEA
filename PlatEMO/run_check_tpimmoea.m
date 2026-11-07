@@ -50,7 +50,7 @@ function run_check_tpimmoea()
             ok = abs(v - ref{i,3}) < 1e-12 && S.cfg.nRecorded == t.maxFE;
             fprintf('%-17s %-7s IGD=%.15g (expected %.15g, %.1f s)',lab,t.probName,v,ref{i,3},e);
         else
-            P  = S.result{end,2}; v = sum(P.objs(:));
+            O  = S.result{end,2}.objs; v = sum(O(:));      % objs is a method: index its result, not the call
             ok = abs(v - ref{i,3}) <= 1e-9*abs(ref{i,3});
             fprintf('%-17s %-7s sum of final objectives=%.15g (expected %.15g, %.1f s)',lab,t.probName,v,ref{i,3},e);
         end
