@@ -79,6 +79,7 @@ classdef TPIMMOEA_X < ALGORITHM
 % batchOne  --- 0    --- 1: when the budget does not exceed Theta (no batch adaptation), one evaluation per generation,
 %                        chosen by the prescreening among the same pre*batchSize candidates as with the base batch
 % arcCap    --- 0    --- capacity of the archive; 0: 2N
+% x1Options --- []   --- phase AC options from x1_options; empty preserves the historical path
 % The phase T switches above keep the lattice of training apart from LDis, so a training neighbourhood never
 % activates interpolation or niche filling in reproduction, and they draw no random number when they are 0.
 % The same holds for baseMode (phase U), refGen (phase V), fill, interp and graphShuf (phase W), cellRead (phase X),
@@ -90,9 +91,17 @@ classdef TPIMMOEA_X < ALGORITHM
             [numNodes,eta0,sigma0,batchBase,Fbase,CRbase,kernel,lattice,gen,sel,pre,preModel,cheap,topo, ...
              refMap,niche,infillD,selRef,shufFrac,sigEnd,refTrain,lcb,poolCtrl,knnK,pbiTheta,Theta,outN,anchorShuf,instr,selMode, ...
              nbPhase,nbGlobal,reproNb,decBMU,etaGlobal,baseMode,refGen,refScope,fill,interp,graphShuf,cellRead, ...
-             batchOne,arcCap] = ...
+             batchOne,arcCap,x1Options] = ...
                 Algorithm.ParameterSet(Problem.N,0.2,NaN,10,0.5,0.9,0,0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,3,5,1000,0,0,0,0, ...
-                                       0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+                                       0,0,0,0,0,0,0,0,0,0,0,0,0,0,[]);
+
+            x1Active = ~isempty(x1Options);
+            if x1Active
+                xo = x1_options(x1Options);
+                assert(refMap && gen == 1 && cellRead == 1 && topo == 2 && ...
+                    ~decBMU && ~anchorShuf && ~graphShuf && ~fill && ~interp && ~instr, ...
+                    'TPIMMOEA_X:X1Configuration','Phase AC requires its fixed X1 backbone and instr=0.');
+            end
 
             Npop = Problem.N;
 
@@ -218,6 +227,13 @@ classdef TPIMMOEA_X < ALGORITHM
                 kc.thetaGlob = 5*ones(1,Problem.D);
             end
 
+            % Phase AC: the ordering phase needs a lattice with local structure. With
+            % resolution H1 = 1 (UniformPoint for N <= C(M+1,M-1), e.g. N = 50 and
+            % M >= 15) every direction of a layer is adjacent to every other, so a
+            % neighbourhood cannot tell near from far regions and ordering is skipped.
+            if x1Active && xo.orderGate && LatticeResolution(Npop,M) < 2
+                nbPhase = 0;
+            end
             % Phase T: lattice of training (apart from LDis) and the nodes trained so far
             tc = struct('LDisTrain',[],'nbPhase',nbPhase,'nbGlobal',nbGlobal,'decBMU',decBMU, ...
                         'etaGlobal',etaGlobal,'search',0);
@@ -247,6 +263,30 @@ classdef TPIMMOEA_X < ALGORITHM
                 if ~isempty(tc.LDisTrain), tc.LDisTrain = tc.LDisTrain(pg,pg); end
             end
 
+            if x1Active
+                kc.x1Opt = xo; tc.x1Opt = xo;
+                [kc.LDisF,kc.x1G] = x1_graph(RefN,kc.LDisF,xo);
+                if ~isempty(tc.LDisTrain), tc.LDisTrain = kc.LDisF; end
+                % Keep LDis unchanged: enabling old niche filling would be a confound.
+                oldIdeal = []; oldScale = [];
+                learnOn = ~strcmp(xo.moveMode,'none') || ~strcmp(xo.repairMode,'none');
+                if learnOn
+                    history = x1_history_append([],Population.decs,Population.objs,Population.cons,xo.learnCap);
+                end
+                kc.x1MoveState.radius = xo.moveRadius*ones(numNodes,1);
+                kc.x1MoveOn = false; kc.x1RepairOn = false; x1Gen = 0;
+                % Phase AD: state of the unreachable niches (proposal A) and the private stream of
+                % the random-cut control of proposal B (seeded from the initial design, so the main
+                % random stream of the optimizer is not touched)
+                kc.x1Dead = false(size(RefN,1),1); kc.x1Fail = zeros(size(RefN,1),1);
+                kc.x1DeadAt = zeros(size(RefN,1),1); kc.x1NRgen = 0;
+                X0 = Population.decs; kc.x1PrivSeed = mod(floor(1e6*sum(abs(X0(:)))),2^31-1);
+                Algorithm.metric.x1GateLog = zeros(0,3);     % [FE, movement on, repair on]
+                Algorithm.metric.x1Options = xo;
+                Algorithm.metric.x1GraphLog = zeros(0,6);
+                Algorithm.metric.x1Diagnostics = {};
+            end
+
             %% ---------------- MAIN LOOP ----------------
             while Algorithm.NotTerminated(ReportSet(Archive,outN,Npop,M,sel,selRef,RefS))
 
@@ -255,6 +295,13 @@ classdef TPIMMOEA_X < ALGORITHM
                 Fobjs = Archive.objs;
                 ideal = min(Fobjs,[],1);
                 nadir = max(Fobjs,[],1);
+                if x1Active
+                    newScale = nadir - ideal + 1e-12;
+                    if xo.transport
+                        W(:,1:M) = x1_transport(W(:,1:M),oldIdeal,oldScale,ideal,newScale);
+                    end
+                    oldIdeal = ideal; oldScale = newScale;
+                end
 
                 %% 1) Train inverse SOM
                 TrainSet = Archive;
@@ -262,6 +309,19 @@ classdef TPIMMOEA_X < ALGORITHM
                     FN = NDSort(Archive.objs,Archive.cons,1);
                     if sum(FN == 1) >= 3
                         TrainSet = Archive(FN == 1);
+                    end
+                end
+                if x1Active
+                    Ft = (TrainSet.objs - ideal)./newScale;
+                    [~,directBMU] = max((Ft./max(vecnorm(Ft,2,2),1e-12))*RefBMU',[],2);
+                    directCounts = accumarray(directBMU,1,[numNodes 1]);
+                    confidence = directCounts./(directCounts + xo.supportPrior);
+                    tc.x1Confidence = confidence;
+                    kc.x1Confidence = confidence;
+                    kc.x1Direct = directCounts > 0;
+                    kc.x1WeightedG = kc.x1G;
+                    if xo.supportWeights
+                        kc.x1WeightedG = kc.x1G.*sqrt(confidence*confidence');
                     end
                 end
                 tc.search = max(0,(Problem.FE - Npop)/max(Problem.maxFE - Npop,1));
@@ -279,6 +339,34 @@ classdef TPIMMOEA_X < ALGORITHM
                     Algorithm.metric.refN      = RefN;
                 end
                 kc.instr = instr; kc.selMode = selMode;
+
+                if x1Active
+                    Algorithm.metric.x1GraphLog(end+1,:) = [Problem.FE,numNodes, ...
+                        nnz(kc.x1G)/numNodes,sum(kc.x1Direct),sum(hitNow),mean(confidence)];
+                    if learnOn
+                        % Activation gates: a gated-off mechanism is neither fitted nor applied,
+                        % so the run follows the profile without it exactly (no draws, no cost).
+                        x1Gen = x1Gen + 1;
+                        kc.x1MoveOn = ~strcmp(xo.moveMode,'none') && Problem.FE >= xo.moveMinFE;
+                        kc.x1RepairOn = false;
+                        if ~strcmp(xo.repairMode,'none') && any(history.C(:) > 0)
+                            feasFrac = mean(all(Archive.cons <= 0,2));
+                            kc.x1RepairOn = feasFrac <= xo.repairFeasTarget;   % trigger 'infeasible'
+                        end
+                        Algorithm.metric.x1GateLog(end+1,:) = [Problem.FE,kc.x1MoveOn,kc.x1RepairOn];
+                        if kc.x1MoveOn || kc.x1RepairOn
+                            Xh = (history.X - Problem.lower)./max(Problem.upper - Problem.lower,eps);
+                            Fh = (history.F - ideal)./newScale;
+                        end
+                        if kc.x1MoveOn
+                            kc.x1MoveModel = x1_movement_fit(Xh,Fh,history.C,RefN,kc.x1WeightedG,xo);
+                        end
+                        if kc.x1RepairOn
+                            [~,ah] = max((Fh./max(vecnorm(Fh,2,2),1e-12))*RefN',[],2);
+                            kc.x1RepairModel = x1_repair_fit(Xh,history.C,ah,kc.x1WeightedG,xo);
+                        end
+                    end
+                end
 
                 %% 1.1) Adaptive batch size (progress + SOM quantization error)
                 batchEff = batchBase;
@@ -305,6 +393,14 @@ classdef TPIMMOEA_X < ALGORITHM
                 [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,batchEff, ...
                                                 ideal,nadir,Fbase,CRbase,progress, ...
                                                 gen,pre,preModel,cheap,topo,RefN,refMap,niche,infillD,kc);
+                if x1Active
+                    if learnOn
+                        history = x1_history_append(history,Offspring.decs,Offspring.objs,Offspring.cons,xo.learnCap);
+                    end
+                    if isfield(kc,'x1GenerationDiag')
+                        Algorithm.metric.x1Diagnostics{end+1} = kc.x1GenerationDiag;
+                    end
+                end
                 if ~isempty(predLog)
                     if isfield(Algorithm.metric,'predLog')
                         Algorithm.metric.predLog(end+1,:) = predLog;
@@ -447,6 +543,29 @@ function c = GuardedMean(X)
     c = mean(X,1);
 end
 
+function C = GapContinuity(A,RefN,FnDir)
+% Phase AD, proposal B: edge j-k of A is kept when some nondominated direction in FnDir lies within half
+% the angle j-k from the bisector of j and k, i.e. on the arc between the two directions. (A quarter of
+% the angle, the first design, cut most edges of continuous fronts with an archive of 50-100 points.)
+    n = size(RefN,1); C = false(n);
+    [I,J] = find(triu(A,1));
+    for e = 1:numel(I)
+        a = RefN(I(e),:); b = RefN(J(e),:);
+        th  = acos(min(1,max(-1,a*b')));
+        bis = (a + b)/max(norm(a + b),1e-12);
+        ok  = any(FnDir*bis' >= cos(th/2));
+        C(I(e),J(e)) = ok; C(J(e),I(e)) = ok;
+    end
+end
+
+function H1 = LatticeResolution(N,M)
+% Resolution of the outer layer of UniformPoint(N,M) (same rule as PlatEMO).
+    H1 = 1;
+    while nchoosek(H1+M,M-1) <= N
+        H1 = H1 + 1;
+    end
+end
+
 function LDis = ReferenceGraph(RefN,M)
 % Lattice of the reference-anchored map: each direction is linked to its
 % 2(M-1) angularly nearest directions (symmetrized), and the lattice
@@ -555,8 +674,13 @@ function [W,qe,hit] = TrainInverseSOM_X(Problem,W,LDis,Samples, ...
             end
 
             if sigT > 0
-                U = tc.LDisTrain(bmu,:) <= 3*sigT;
-                H = exp(-tc.LDisTrain(bmu,U).^2/(2*sigT^2));
+                if isfield(tc,'x1Opt') && (tc.x1Opt.massBudget >= 0 || tc.x1Opt.supportWeights)
+                    Hfull = x1_cooperation_weights(tc.LDisTrain(bmu,:),bmu,sigT,tc.x1Opt,tc.x1Confidence);
+                    U = Hfull > 0; H = Hfull(U);
+                else
+                    U = tc.LDisTrain(bmu,:) <= 3*sigT;
+                    H = exp(-tc.LDisTrain(bmu,U).^2/(2*sigT^2));
+                end
             elseif kernel == 0
                 U = LDis(bmu,:) < sigma;
                 if ~any(U)
@@ -611,6 +735,8 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     D    = Problem.D;
     nArc = length(Archive);
     predLog = [];
+    x1Active = isfield(kc,'x1Opt');
+    if x1Active, xo = kc.x1Opt; end
 
     Lower = Problem.lower(:)';
     Upper = Problem.upper(:)';
@@ -705,12 +831,35 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     if crOn
         A1c = kc.LDisF == 1;
         upd = kc.updatedNow(:)';
+        if x1Active
+            if strcmp(xo.supportMode,'direct'), upd = kc.x1Direct(:)'; end
+            if xo.supportWeights, A1c = kc.x1WeightedG > 0; end
+        end
+    end
+    nGapCut = 0;
+    if crOn && x1Active && xo.gapRead
+        % Phase AD, proposal B: keep the edge j-k in the cell only if a nondominated member lies
+        % on the arc between the two directions (the front is continuous there)
+        A0  = A1c;
+        A1c = A1c & GapContinuity(A1c,RefN,FnDir);
+        nGapCut = nnz(triu(A0 & ~A1c,1));
+        if xo.gapReadShuf && nGapCut > 0
+            % control: the same number of edges cut, chosen at random (private stream)
+            [I,J] = find(triu(A0,1));
+            rs = RandStream('mt19937ar','Seed',mod(kc.x1PrivSeed + 7919*(kc.x1NRgen+1),2^31-1));
+            cut = randperm(rs,numel(I),nGapCut);
+            A1c = A0;
+            for e = cut, A1c(I(e),J(e)) = false; A1c(J(e),I(e)) = false; end
+        end
     end
     emptyN = [];
     if niche
         nNodes   = size(RefN,1);
         occupied = accumarray(assocND,1,[nNodes 1])' > 0;
         emptyN   = find(~occupied);
+        if x1Active && xo.nicheReach
+            emptyN = emptyN(~kc.x1Dead(emptyN));         % phase AD, proposal A: skip unreachable niches
+        end
         d1  = sum(Fnorm.*RefN(assocND,:),2);
         d2  = sqrt(max(sum(Fnorm.^2,2) - d1.^2,0));
         rep = zeros(1,nNodes);
@@ -729,14 +878,21 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     if isfield(kc,'nPool') && ~isempty(kc.nPool), nCand = kc.nPool; end   % phase AA: same pool, one evaluated
     OffDec   = zeros(nCand,D);
     candNode = zeros(nCand,1);      % map region each candidate was generated for (refMap)
+    candFill = false(nCand,1);      % phase AD: the candidate was generated to fill an empty niche
     candStat = nan(nCand,5);        % phase U diagnostics of the base point (kc.instr)
     cellStat = nan(nCand,3);        % phase X: [residual, weight on the neighbours, nodes in the cell - 1]
+    if x1Active
+        moveApplied = false(nCand,1); parentIndex = ones(nCand,1);
+        moveStep = zeros(nCand,1); repairApplied = false(nCand,1);
+        repairAttempted = false(nCand,1); repairRejectedDuplicate = 0;
+    end
 
     for i = 1:nCand
         tries = 0;
         while true
             useNiche = false;
             srcNode  = 0;
+            if x1Active, moveApplied(i) = false; moveStep(i) = 0; end
             if niche && ~isempty(emptyN) && rand < 0.5
                 j     = emptyN(randi(numel(emptyN)));
                 if fillOn && kc.fill == 2
@@ -813,6 +969,12 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                         if kc.cellRead == 1     % graph neighbours of j, angularly nearest to the parent
                             cand = find(A1c(j,:) & upd);
                             [~,o] = sort(-RefN(cand,:)*FnDir(idxP,:)');
+                            if x1Active && strcmp(xo.readMode,'proximity')
+                                nMatch = min(M-1,numel(cand));
+                                cand = find(upd); cand(cand == j) = [];
+                                [~,o] = sort(sum((SomY(cand,:) - yP).^2,2));
+                                cand = cand(o(1:min(nMatch,numel(cand)))); o = 1:numel(cand);
+                            end
                         else                    % nodes nearest to the parent in objective space (no graph)
                             cand = find(upd); cand(cand == j) = [];
                             [~,o] = sort(sum((SomY(cand,:) - yP).^2,2));
@@ -820,6 +982,15 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
                         if ~isempty(cand)
                             S   = [j, cand(o(1:min(M-1,numel(cand))))];
                             lam = SimplexWeights(SomY(S,:),yP);
+                            if x1Active && xo.supportWeights
+                                % Reliability-adjusted convex read-out; the same confidence
+                                % products weight the SOM's cooperation graph.
+                                confNb = kc.x1Confidence(S(2:end));
+                                reliability = [1; sqrt(kc.x1Confidence(j)*confNb(:))];
+                                lam = lam(:).*reliability;
+                                lam = lam/max(sum(lam),eps);
+                                if ~any(lam), lam(1) = 1; end
+                            end
                             xProtoNorm    = lam(:)'*SomX(S,:);
                             cellStat(i,:) = [norm(lam(:)'*SomY(S,:) - yP), 1 - lam(1), numel(S) - 1];
                         end
@@ -905,6 +1076,15 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             u(mask) = v(mask);
             u = min(max(u,Lower),Upper);
 
+            if x1Active && kc.x1MoveOn && mod(i,2) == 0 && ~useNiche
+                [un,md] = x1_movement_apply(xProtoNorm,(u-Lower)./Range,srcNode, ...
+                    kc.x1MoveModel,kc.x1MoveState,xo);
+                if md.applied
+                    u = min(max(Lower + un.*Range,Lower),Upper);
+                    moveApplied(i) = true; moveStep(i) = md.stepRMS;
+                end
+            end
+
             if ~cheap || tries >= 5 || ~IsDuplicate(u,[ArcDec;OffDec(1:i-1,:)],Range)
                 break;
             end
@@ -912,6 +1092,28 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
         end
         OffDec(i,:)  = u;
         candNode(i)  = srcNode;
+        candFill(i)  = useNiche;
+        if x1Active && ~useNiche, parentIndex(i) = idxP; end
+    end
+
+    if x1Active && kc.x1RepairOn
+        beforeRepair = OffDec;
+        [repaired,rd] = x1_repair_apply((OffDec-Lower)./Range,candNode,kc.x1RepairModel,xo);
+        repairAttempted = rd.attempted; repairApplied = rd.applied;
+        for i = 1:nCand
+            if ~rd.applied(i), continue; end
+            proposed = min(max(Lower + repaired(i,:).*Range,Lower),Upper);
+            other = [1:i-1,i+1:nCand];
+            if cheap && IsDuplicate(proposed,[ArcDec;OffDec(other,:)],Range)
+                repairApplied(i) = false;
+                repairRejectedDuplicate = repairRejectedDuplicate + 1;
+            else
+                OffDec(i,:) = proposed;
+            end
+        end
+        repairStep = sqrt(mean(((OffDec-beforeRepair)./Range).^2,2));
+    else
+        repairStep = zeros(nCand,1);
     end
 
     if pre > 1
@@ -927,6 +1129,7 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
             chosen  = order(1:min(batchSize,nCand));
             PredSel = zeros(numel(chosen),M); SdSel = PredSel;
         else
+            if x1Active, kc.x1PreEmpty = []; kc.x1PreNiche = []; end   % phase AD: no stale niche targets
             [chosen,PredSel,SdSel,kc] = Prescreen(Problem,Archive,W,LDis,OffDec,batchSize,ideal,nadir, ...
                                                   preModel,RefN,infillD,kc);
         end
@@ -944,6 +1147,62 @@ function [Offspring,predLog,kc] = OperatorInverseDE_X(Problem,Archive,W,LDis,bat
     end
 
     Offspring = Problem.Evaluation(OffDec);
+
+    if x1Active
+        ev = (1:nCand)';
+        if pre > 1, ev = chosen(:); end
+        ev = ev(1:numel(Offspring));
+        % Radius feedback excludes repaired candidates: their improvement
+        % cannot be attributed specifically to the movement operator.
+        feedback = find(moveApplied(ev) & ~repairApplied(ev));
+        if ~isempty(feedback)
+            parents = ND(parentIndex(ev(feedback)));
+            children = Offspring(feedback);
+            [kc.x1MoveState,~] = x1_movement_update(kc.x1MoveState,candNode(ev(feedback)), ...
+                (parents.objs-ideal)./(nadir-ideal+1e-12),parents.cons, ...
+                (children.objs-ideal)./(nadir-ideal+1e-12),children.cons,RefN,xo);
+        end
+        kc.x1GenerationDiag = struct('FE',Problem.FE,'generated',nCand,'evaluated',numel(ev), ...
+            'movementGenerated',sum(moveApplied),'movementEvaluated',sum(moveApplied(ev)), ...
+            'movementMeanRMS',mean(moveStep(moveApplied),'omitnan'), ...
+            'repairAttempted',sum(repairAttempted),'repairGenerated',sum(repairApplied), ...
+            'repairEvaluated',sum(repairApplied(ev)),'repairDuplicateReverts',repairRejectedDuplicate, ...
+            'repairMeanRMS',mean(repairStep(repairApplied),'omitnan'), ...
+            'radiusMean',mean(kc.x1MoveState.radius));
+        if xo.nicheReach
+            % Phase AD, proposal A: a niche aimed at as empty and missed counts a failure; any
+            % evaluated solution landing in a niche revives it; dead niches retry after nicheReachAge
+            kc.x1NRgen = kc.x1NRgen + 1; g = kc.x1NRgen;
+            rev = kc.x1Dead & (g - kc.x1DeadAt >= xo.nicheReachAge);
+            kc.x1Dead(rev) = false; kc.x1Fail(rev) = 0;
+            Fo = (Offspring.objs - ideal)./(nadir - ideal + 1e-12);
+            [~,tn] = max((Fo./max(vecnorm(Fo,2,2),1e-12))*RefN',[],2);
+            intended = zeros(numel(ev),1);
+            fl = candFill(ev); intended(fl) = candNode(ev(fl));
+            if pre > 1 && isfield(kc,'x1PreEmpty') && numel(kc.x1PreEmpty) >= numel(ev)
+                pe = kc.x1PreEmpty(:); pn = kc.x1PreNiche(:);
+                sl = ~fl & pe(1:numel(ev)); intended(sl) = pn(sl);
+            end
+            kc.x1Fail(tn) = 0; kc.x1Dead(tn) = false;
+            for q = find(intended > 0 & intended ~= tn)'
+                t = intended(q); kc.x1Fail(t) = kc.x1Fail(t) + 1;
+                if kc.x1Fail(t) >= xo.nicheReachT, kc.x1Dead(t) = true; kc.x1DeadAt(t) = g; end
+            end
+        elseif xo.gapRead
+            kc.x1NRgen = kc.x1NRgen + 1;                % generation counter of the random-cut control
+        end
+        kc.x1GenerationDiag.deadNiches = sum(kc.x1Dead);
+        kc.x1GenerationDiag.gapCut = nGapCut;
+        kc.x1GenerationDiag.movementOn = kc.x1MoveOn;
+        kc.x1GenerationDiag.repairOn = kc.x1RepairOn;
+        if kc.x1RepairOn
+            kc.x1GenerationDiag.repairActiveNodes = sum(kc.x1RepairModel.active);
+            kc.x1GenerationDiag.repairGlobalValid = kc.x1RepairModel.global.valid;
+            [reasons,~,ri] = unique(rd.reason);
+            kc.x1GenerationDiag.repairReasons = reasons;
+            kc.x1GenerationDiag.repairReasonCounts = accumarray(ri,1);
+        end
+    end
 
     if pre > 1 && numel(Offspring) >= 3
         TrueN = (Offspring.objs - ideal)./(nadir - ideal + 1e-12);
@@ -1161,6 +1420,12 @@ function [chosen,PredSel,SdSel,kc] = Prescreen(Problem,Archive,W,LDis,Cand,B,ide
         end
         gain = bestA(nichC) - pbiC;
         gain(~isfinite(bestA(nichC))) = 1e6 - pbiC(~isfinite(bestA(nichC)));
+        nrOn = isfield(kc,'x1Opt') && kc.x1Opt.nicheReach;
+        if nrOn
+            % phase AD, proposal A: an unreachable empty niche loses the empty-niche priority
+            deadC = ~isfinite(bestA(nichC)) & kc.x1Dead(nichC);
+            gain(deadC) = -pbiC(deadC);
+        end
         improve = gain > 0;
         [~,order] = sortrows([double(pCV > 0), pCV, double(~improve), -gain]);
         order  = order(avail(order));
@@ -1178,6 +1443,9 @@ function [chosen,PredSel,SdSel,kc] = Prescreen(Problem,Archive,W,LDis,Cand,B,ide
             if ~ismember(c,chosen)
                 chosen(end+1) = c; %#ok<AGROW>
             end
+        end
+        if nrOn
+            kc.x1PreNiche = nichC(chosen); kc.x1PreEmpty = ~isfinite(bestA(nichC(chosen)));
         end
     else
         FrontNo = NDSort([ArcF;PredF],[ArcC;PredC],inf);

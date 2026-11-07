@@ -33,7 +33,7 @@ TP-IM-MOEA organizes the inverse model, which maps the objective space to the de
 run_check_tpimmoea
 ```
 
-It runs TP-IM-MOEA on WFG4 and DTLZ2 with the seeds of the article and checks that the IGD matches the published runs within 10<sup>-12</sup>.
+It runs the final configuration (`TPIMMOEA`) on WFG4, DTLZ2 and RWMOP30, and the previous configuration g15 (`TPIMMOEA_X`) on WFG4 and DTLZ2, with the seeds of the article, and checks that the results match the published runs (IGD within 10<sup>-12</sup>; on RWMOP30, which exercises the feasibility repair, the final set within a relative 10<sup>-9</sup>).
 
 ## Usage
 
@@ -43,7 +43,7 @@ TP-IM-MOEA is called like any PlatEMO algorithm:
 platemo('algorithm',@TPIMMOEA,'problem',@WFG4,'M',3,'D',10,'N',50,'maxFE',300);
 ```
 
-Its parameters follow Table I of the article, in this order:
+Its parameters follow Table S19 of the supplementary material, in this order:
 
 | Parameter | Default | Meaning |
 |---|---|---|
@@ -57,13 +57,13 @@ Its parameters follow Table I of the article, in this order:
 | `Theta` | 1000 | Evaluation budget above which the batch size is adapted |
 | `outN` | 0 | 1 returns N solutions chosen by the environmental selection instead of the archive of 2N |
 
-For example, the real-world problems of the article are solved with `outN = 1`:
+Use `outN = 0` on the benchmark suites (the scored set is the nondominated set of all evaluations) and `outN = 1` on the real-world problems of the article, which are scored on a final population of N solutions:
 
 ```matlab
 platemo('algorithm',{@TPIMMOEA,[],[],[],[],[],[],[],[],1},'problem',@RWMOP1);
 ```
 
-`TPIMMOEA_X` is the research implementation used in all experiments. `TPIMMOEA` runs it with the final configuration of the article, and both give identical runs from the same random stream. The other switches of `TPIMMOEA_X` are documented in its header and serve the ablation study and the control experiments.
+`TPIMMOEA_X` is the research implementation used in all experiments. `TPIMMOEA` runs it with the final configuration of the article, `x1_parameters('gated_repair_global',outN)`: anchored map with a short ordering phase (skipped when the reference lattice has a single division per objective), read-out on the cell of the parent, kNN/PBI prescreening, and, on constrained problems, a repair with global affine constraint models while no feasible solution exists. Both give identical runs from the same random stream. The previous configuration of the article is `x1_parameters('g15',outN)`. The other switches of `TPIMMOEA_X` are documented in its header and serve the ablation study and the control experiments.
 
 ## Changes to PlatEMO 4.16
 
@@ -99,6 +99,8 @@ verify_c_results            % audit of the completed runs
 The task lists of phases P3 and Q also define configurations of the preliminary design study, which are not reported in the article; phase C reuses their output names, and hence their seeds.
 
 Phase T (`t_build_tasks.m`, `run_t.m`, and `verify_t_results.m`) tests the use of the map neighborhood in training and in reproduction. Its hypotheses, design, and decision rule are fixed in [`docs/phase_T_preregistration.md`](docs/phase_T_preregistration.md) before any of its runs. Phase U (`u_build_tasks.m`, `run_u.m`, and `verify_u_results.m`) tests why the decision prototype of the parent's region is a better base point than the parent itself, as fixed in [`docs/phase_U_preregistration.md`](docs/phase_U_preregistration.md). Phase V (`v_build_tasks.m`, `run_v.m`, and `verify_v_results.m`) replaces the Das-Dennis directions of the map by the weight vectors of MOEA/D-UR, which give exactly N directions for any number of objectives, as fixed in [`docs/phase_V_preregistration.md`](docs/phase_V_preregistration.md). Phase W (`w_build_tasks.m`, `run_w.m`, and `verify_w_results.m`) tests two uses of the topology of the map in reproduction, gap filling from neighboring regions and a piecewise-linear read-out of the inverse model, each against a control without the topology, as fixed in [`docs/phase_W_preregistration.md`](docs/phase_W_preregistration.md). Phase X (`x_build_tasks.m`, `run_x.m`, and `verify_x_results.m`) tests TPN, which adds to the final configuration an ordering phase in training and a read-out on the cell of the parent in reproduction, against three controls, as fixed in [`docs/phase_X_preregistration.md`](docs/phase_X_preregistration.md). Phase Y (`y_build_tasks.m`, `run_y.m`, and `verify_y_results.m`) confirms X2, the cell read-out with winner-only training, on RWMOP, on WFG with 15 and 20 objectives, and on DTLZ, as fixed in [`docs/phase_Y_preregistration.md`](docs/phase_Y_preregistration.md). Phase AA (`aa_build_tasks.m`, `run_aa.m`, and `verify_aa_results.m`) tests one evaluation per generation under small budgets and an archive of capacity 300, as fixed in [`docs/phase_AA_preregistration.md`](docs/phase_AA_preregistration.md).
+
+The experimental X1 extension (phase AC) adds `TPIMMOEA_X1C`, `TPIMMOEA_X1M`, `TPIMMOEA_X1F`, and `TPIMMOEA_X1CMF`, with explicit mechanism controls and paired seeds. These wrappers are research controls; the published configuration uses the extension through the profile `gated_repair_global` and is run by `TPIMMOEA`. See the [implementation notes](docs/x1_implementation.md) and [experimental protocol](docs/phase_AC_protocol.md). `run_ac` defaults to a dry run; actual runs require the CASA host guard. Component tests are available through `run_x1_unit_tests`, and `run_check_x1_installation` checks the installation without objective evaluations.
 
 ## Regenerating the tables
 
