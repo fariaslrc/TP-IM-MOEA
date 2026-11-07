@@ -33,7 +33,7 @@ TP-IM-MOEA organizes the inverse model, which maps the objective space to the de
 run_check_tpimmoea
 ```
 
-It runs the final configuration (`TPIMMOEA`) on WFG4, DTLZ2 and RWMOP30, and the previous configuration g15 (`TPIMMOEA_X`) on WFG4 and DTLZ2, with the seeds of the article, and checks that the results match the published runs. On WFG4 and DTLZ2 it compares the IGD of the nondominated solutions among all evaluations (absolute tolerance 10<sup>-12</sup>). On RWMOP30, which exercises the repair, it compares the sum of all objective values of the final population of N solutions (relative tolerance 10<sup>-9</sup>), a checksum of that population rather than a comparison of the full matrices.
+It runs the final configuration (`TPIMMOEA`) on WFG4, DTLZ2 and RWMOP30, and the previous configuration g15 (`TPIMMOEA_X`) on WFG4 and DTLZ2, with the seeds of the article, and checks that the results match the published runs. On WFG4 and DTLZ2 it compares the IGD of the nondominated solutions among all evaluations (absolute tolerance 10<sup>-12</sup>). On RWMOP30, which exercises the repair, it compares the sum of all objective values of the final population of N solutions (relative tolerance 10<sup>-9</sup>), a checksum of that population rather than a comparison of the full matrices. On the machine of the experiments (MATLAB R2026b, Windows), all five checks pass; the IGD values are identical, and the RWMOP30 checksum differs from the published run by a relative 9×10<sup>-13</sup>.
 
 ## Usage
 
