@@ -17,23 +17,29 @@ classdef TPIMMOEA < TPIMMOEA_X
 %--------------------------------------------------------------------------
 
 % This class runs the research implementation TPIMMOEA_X with the final
-% configuration of the article: a SOM anchored to a simplex of reference
-% directions (BMU by angle, winner-only updates) and trained on the
-% nondominated archive members, isolation-guided reconstruction refined by
-% budget-adaptive DE, kNN prescreening ranked by PBI with one candidate per
-% niche first, SPEA2-style truncation for M <= 3 and reference-direction
-% niching for M >= 4, Latin hypercube initialization, and rejection of
-% duplicate candidates. With the same random stream, its runs are identical
-% to those of TPIMMOEA_X with this configuration.
+% configuration of the article (internal profile 'gated_repair_global'):
+% a SOM anchored to a simplex of reference directions (BMU by angle) and
+% trained on the nondominated archive members, with a cooperative ordering
+% phase in the first 20% of the epochs of each training call (skipped when
+% the outer layer of the reference lattice has resolution H1 = 1) and
+% winner-only updates afterwards; isolation-guided reconstruction read on
+% the cell of the parent (its node and up to m-1 lattice neighbours, convex
+% weights) and refined by budget-adaptive DE; kNN prescreening ranked by PBI
+% with one candidate per niche first; on constrained problems, repair with
+% global affine constraint models while the archive has no feasible member;
+% SPEA2-style truncation for M <= 3 and reference-direction niching for
+% M >= 4; Latin hypercube initialization; rejection of duplicate candidates.
+% With the same random stream, its runs are identical to those of
+% TPIMMOEA_X with x1_parameters('gated_repair_global',outN).
+% The previous configuration of the article (winner-only map, single-node
+% read-out, no repair) is x1_parameters('g15',outN).
 
     methods
         function main(Algorithm,Problem)
             [eta0,B0,F0,CR0,K,k,theta,Theta,outN] = Algorithm.ParameterSet(0.2,10,0.5,0.9,5,3,5,1000,0);
-            %          numNodes eta0 sigma0 batch F  CR  kernel lattice gen sel pre preModel cheap topo ...
-            config = { [],      eta0, 1,     B0,  F0, CR0, 1,     0,      1,  1,  K,  2,       1,    2, ...
-                       1, 1, 1, 1, 1, 0.3, 1, 0, 0, k, theta, Theta, outN, 0, 0, 0};
-            %          refMap niche infillD selRef shufFrac sigEnd refTrain lcb poolCtrl knnK pbiTheta Theta outN
-            %          anchorShuf instr selMode
+            config = x1_parameters('gated_repair_global',outN);
+            config{2} = eta0; config{4} = B0; config{5} = F0; config{6} = CR0;
+            config{11} = K; config{24} = k; config{25} = theta; config{26} = Theta;
             user = Algorithm.parameter;
             Algorithm.parameter = config;
             try
