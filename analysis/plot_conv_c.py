@@ -8,8 +8,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
-OUT = Path(__file__).resolve().parent / 'figures' / 'convergence_curves.pdf'
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
+OUT = HERE / 'figures' / 'convergence_curves.pdf'
 OUT.parent.mkdir(exist_ok=True)
 C = pd.read_csv(H / 'conv_c.csv')
 STY = {'OURS': ('TP-IM-MOEA', '#c0392b', '-'), 'PIEA': ('PIEA', '#2471a3', '--'), 'EGES': ('EGES', '#1e8449', '-.'),

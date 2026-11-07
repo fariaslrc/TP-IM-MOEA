@@ -17,7 +17,7 @@ function export_f(block)
 %Writes results/f_<block>.csv.
 
     here = fileparts(mfilename('fullpath'));
-    [P,ISS] = repo_paths();             % PlatEMO, and the folder that holds the Data_<phase> folders
+    [P,ISS] = repo_paths();       % PlatEMO, and the folder that holds the Data_<phase> folders
     if nargin < 1, block = 'F1'; end
     f = dir(fullfile(ISS,['Data_' block(1)],block,'**','*.mat'));
     f = f(~contains({f.folder},'_smoke'));

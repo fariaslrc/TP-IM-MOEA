@@ -8,7 +8,8 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from scipy.stats import ranksums, friedmanchisquare, wilcoxon
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
 F = pd.read_csv(H / 'c_F1.csv')
 T = pd.read_csv(H / 'f_F1.csv')
 C1 = pd.read_csv(H / 'c_C1.csv'); C1 = C1[C1.config == 'g15']

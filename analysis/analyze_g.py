@@ -13,9 +13,8 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from scipy.stats import ranksums, friedmanchisquare
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
-
-
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
 def tag(x, y):
     if ranksums(x, y).pvalue >= 0.05: return '='
     return '+' if x.mean() < y.mean() else '-'

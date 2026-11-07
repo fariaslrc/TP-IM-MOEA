@@ -12,7 +12,8 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from scipy.stats import ranksums, friedmanchisquare
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
 COLS = ['alg', 'prob', 'M', 'D', 'run', 'FE', 'IGDall', 'IGDpall', 'IGD50']
 
 
@@ -27,11 +28,18 @@ old = pd.read_csv(H / 'rescore_old.csv')
 old = old[(old.run <= 30) & (old.type == 'arch') & old.alg.isin(['PIEA', 'KRVEA'])]
 old = old.rename(columns={'IGDrep': 'IGDall', 'IGDprep': 'IGDpall'})
 c1 = c('C1'); c1['alg'] = c1.config.replace({'g15': 'OURS'})
+FINAL = True      # final model F of phase AC: X1 of phase X at 300 evaluations, block Z7 at 600 and 1,000
+if FINAL:
+    x1 = pd.read_csv(H / 'c_X1.csv'); x1 = x1[x1.config == 'X1_TPN'].assign(alg='OURS')
+    c1 = pd.concat([c1[c1.alg != 'OURS'], x1], ignore_index=True)
 d5 = c('D5')
 F300 = pd.concat([c1[c1.alg.isin(['OURS', 'SSDE'])], old, d5]).assign(FE=300)
 INST = c('H1')[['prob', 'M', 'D']].drop_duplicates()
 F300 = F300.merge(INST, on=['prob', 'M', 'D'])
-ALL = pd.concat([F300, c('H1').assign(FE=lambda d: d.maxFE), c('H2').assign(FE=lambda d: d.maxFE),
+h1 = c('H1')
+if FINAL:
+    h1 = pd.concat([h1[h1.alg != 'OURS'], c('Z7')], ignore_index=True)
+ALL = pd.concat([F300, h1.assign(FE=lambda d: d.maxFE), c('H2').assign(FE=lambda d: d.maxFE),
                  c('H3').assign(FE=lambda d: d.maxFE)], ignore_index=True)[COLS]
 print(ALL.groupby(['FE', 'alg']).size().unstack())
 
@@ -91,8 +99,8 @@ for FE in [300, 600, 1000]:
 
 # ---------------------------------------------------------------- phase I
 print('\n=== Population size (vs N = 50, block C4 s00_default)')
-c4 = pd.read_csv(H / 'c_C4.csv').query("config == 's00_default'")
-I1 = pd.read_csv(H / 'c_I1.csv')
+c4 = pd.read_csv(H / ('c_Z2.csv' if FINAL else 'c_C4.csv')).query("config == 's00_default'")
+I1 = pd.read_csv(H / ('c_Z8.csv' if FINAL else 'c_I1.csv'))
 G50 = {k: g.IGDall.values for k, g in c4.groupby(['prob', 'M', 'D'])}
 for cfg in ['n030', 'n100']:
     T = I1[I1.config == cfg]
@@ -104,7 +112,7 @@ for cfg in ['n030', 'n100']:
     print(f"  {cfg}: {t.count('+')}/{t.count('-')}/{t.count('=')}  mean ratio {np.exp(np.mean(np.log(r))):.3f}  " + ' '.join(rows))
 
 # ---------------------------------------------------------------- Table S18 (budget)
-TAB = Path(__file__).resolve().parent / 'tables'
+TAB = HERE / 'tables'
 TAB.mkdir(exist_ok=True)
 NM = {'OURS': '\\ours', 'PIEA': 'PIEA', 'EGES': 'EGES', 'SSDE': 'SSDE', 'KRVEA': 'K-RVEA$^{\\mathrm{a}}$'}
 cols, pv = {}, []

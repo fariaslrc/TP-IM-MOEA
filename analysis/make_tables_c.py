@@ -17,8 +17,9 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from scipy.stats import ranksums, friedmanchisquare
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
-TAB = Path(__file__).resolve().parent / 'tables'
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
+TAB = HERE / 'tables'
 TAB.mkdir(exist_ok=True)
 HEAD = '\\providecommand{\\ours}{TP-IM-MOEA}\n'
 NAMES = {'OURS': '\\ours', 'IMMOEAD': 'IM-MOEA/D', 'IMCMOEAD': 'IM-C-MOEA/D', 'SSDE': 'SSDE', 'EGES': 'EGES',
@@ -39,6 +40,16 @@ def have(name):
 
 
 COLS = ['alg', 'prob', 'M', 'D', 'run', 'IGDall', 'IGDpall', 'IGD50']
+# Final model F of phase AC (X1 with the geometric ordering gate and the global repair), same seeds as every
+# result: X1 of phase X on WFG m <= 9, X2 of phase Y on WFG m = 15/20 (F equals X2 there), X1 of phase AB on
+# DTLZ, gated_repair_global of block AC4 on RWMOP; supporting experiments of phase Z (Z1-Z10).
+FINAL = True
+def ours(name, cfgname=None):
+    d = pd.read_csv(H / f'c_{name}.csv')
+    if cfgname: d = d[d.config == cfgname]
+    return d.assign(alg='OURS')
+def zc(name):
+    d = pd.read_csv(H / f'c_{name}.csv'); d['alg'] = d.config; return d
 old = pd.read_csv(H / 'rescore_old.csv')
 old = old[(old.run <= 30) & (old.type == 'arch')].rename(columns={'IGDrep': 'IGDall', 'IGDprep': 'IGDpall'})
 if have('D5'):                                   # EGES rerun with seeds and the cap replaces the archived runs
@@ -46,24 +57,44 @@ if have('D5'):                                   # EGES rerun with seeds and the
 if (H / 'rescore_remo.csv').exists():            # REMO (block B4), scored on its first 300 evaluations
     r = pd.read_csv(H / 'rescore_remo.csv').rename(columns={'IGDrep': 'IGDall', 'IGDprep': 'IGDpall'})
     old = pd.concat([old, r[r.run <= 30]])
-WFG = pd.concat([c('C1')[COLS], old[COLS]] + ([c('D5')[COLS]] if have('D5') else []), ignore_index=True)
-ABL = pd.concat([c('C3')[COLS], c('C1').query("alg == 'OURS'")[COLS]], ignore_index=True)
-if have('K1'):            # noSOM with topo = 4 (phase K): only the base point of reproduction differs from g15
-    ABL = pd.concat([ABL[ABL.alg != 'q06_noSOM'], c('K1').assign(alg='q06_noSOM')[COLS]], ignore_index=True)
-MO = pd.concat([c('C2')[COLS], c('C7').assign(alg='PIEA')[COLS], c('D3').assign(alg='EGES')[COLS]], ignore_index=True)
+C1o = c('C1'); C2o = c('C2')
+if FINAL:
+    C1o = pd.concat([C1o[C1o.alg != 'OURS'], ours('X1', 'X1_TPN')], ignore_index=True)
+    C2o = pd.concat([C2o[C2o.alg != 'OURS'], ours('Y1')], ignore_index=True)
+WFG = pd.concat([C1o[COLS], old[COLS]] + ([c('D5')[COLS]] if have('D5') else []), ignore_index=True)
+ABL = pd.concat([(zc('Z1') if FINAL else c('C3'))[COLS], C1o.query("alg == 'OURS'")[COLS]], ignore_index=True)
+if have('K1'):            # noSOM with topo = 4 (phase K): only the base point of reproduction differs from the model
+    K = zc('Z10') if FINAL else c('K1')
+    ABL = pd.concat([ABL[ABL.alg != 'q06_noSOM'], K.assign(alg='q06_noSOM')[COLS]], ignore_index=True)
+MO = pd.concat([C2o[COLS], c('C7').assign(alg='PIEA')[COLS], c('D3').assign(alg='EGES')[COLS]], ignore_index=True)
 # CSEA, DTLZ4, m = 3, d = 100, runs 9 and 14 stop with an error: scored on the evaluations before it (G3);
 # until G3 arrives, the runs with new seeds of phase E stand in for them
 e2 = (c('G3').query("alg == 'CSEA'") if have('G3') else
       c('E2').query('run in [31, 32]').assign(run=lambda d: d.run.map({31: 9, 32: 14})))
-DT = pd.concat([c('D2')[COLS], e2[COLS]] + ([c('D4').assign(alg='REMO')[COLS]] if have('D4') else []), ignore_index=True)
+D2o = c('D2')
+if FINAL: D2o = pd.concat([D2o[D2o.alg != 'OURS'], ours('AB3')], ignore_index=True)
+DT = pd.concat([D2o[COLS], e2[COLS]] + ([c('D4').assign(alg='REMO')[COLS]] if have('D4') else []), ignore_index=True)
 TIME = c('D1').groupby('alg').runtime.mean()      # optimization time only (metric.tSolve)
+if FINAL:   # phase TE: every algorithm and F timed together on one machine (block TE1, metric.tSolve)
+    te = pd.read_csv(H / 'c_TE1.csv')
+    TIME = te.assign(alg=te.config.replace({'F': 'OURS'})).query("alg != 'g15'").groupby('alg').tSolve.mean()
+    print(f"time of F (TE1): {TIME['OURS']:.3f} s")
 
 c5, c8 = c('C5'), c('C8')
 if (H / 'rwmop_hv.csv').exists():                  # HV with one explicit normalization per problem (rescore_rwmop.m)
     hvn = pd.read_csv(H / 'rwmop_hv.csv')[['config', 'prob', 'run', 'HVnorm']]
     c5 = c5.merge(hvn, on=['config', 'prob', 'run'], how='left').assign(HV=lambda d: d.HVnorm)
     c8 = c8.merge(hvn, on=['config', 'prob', 'run'], how='left').assign(HV=lambda d: d.HVnorm)
-RW = pd.concat([c5.query("alg == 'OURS'"), c8], ignore_index=True)[['alg', 'prob', 'M', 'D', 'run', 'HV']]
+RWo = c5.query("alg == 'OURS'")
+if FINAL:   # F on RWMOP (block AC4); every algorithm rescored with ONE normalization that includes F
+    hvf = pd.read_csv(H / 'rwmop_hv_final.csv')         # rescore_rwmop_final.m (review of 2026-11-06)
+    md = c5.groupby('prob')[['M', 'D']].first()
+    f = hvf[hvf.config == 'F']
+    RWo = f.assign(alg='OURS', HV=f.HVnorm, M=f.prob.map(md.M), D=f.prob.map(md.D))
+    c8 = c8.drop(columns=['HVnorm', 'HV'], errors='ignore').merge(
+        hvf[['config', 'prob', 'run', 'HVnorm']], on=['config', 'prob', 'run'], how='left').assign(HV=lambda d: d.HVnorm)
+    FEAS = hvf[hvf.config.isin(['F', 'IMMOEAD', 'IMCMOEAD', 'SSDE', 'CTAEA', 'RVEA'])]
+RW = pd.concat([RWo, c8], ignore_index=True)[['alg', 'prob', 'M', 'D', 'run', 'HV']]
 full = pd.MultiIndex.from_product([RW.alg.unique(), RW.prob.unique(), range(1, 31)], names=['alg', 'prob', 'run'])
 miss = full.difference(pd.MultiIndex.from_frame(RW[['alg', 'prob', 'run']])).to_frame(index=False)
 RW = pd.concat([RW, miss], ignore_index=True)
@@ -211,7 +242,7 @@ D15 = D30 + ['KRVEA']
 q30, pq30 = ranks(CD, D30, inst30); q10, pq10 = ranks(CD, D15, i10); q100, pq100 = ranks(CD, D30, i100)
 q30p, _ = ranks(CDp, D30, inst30); q3050, _ = ranks(CD50, D30, inst30)
 L = [HEAD + '\\begin{table}[t]', '\\centering', '\\renewcommand{\\arraystretch}{1.12}', '\\setlength{\\tabcolsep}{2.5pt}',
-     '\\caption{Summary of the Comparison on the Held-Out Suite DTLZ1--DTLZ4 and DTLZ7 ($m\\in\\{3,6,9\\}$, $d\\in\\{10,100\\}$, $N=50$, '
+     '\\caption{Summary of the Comparison on the Validation Suite DTLZ1--DTLZ4 and DTLZ7 ($m\\in\\{3,6,9\\}$, $d\\in\\{10,100\\}$, $N=50$, '
      '$FE=300$, 30 Runs). $+/-/=$ and the Ranks Are Defined as in Table~\\ref{tab:wfg_baselines_summary}; IGD Ranks Are Given Over the 30 '
      'Instances and Separately Over the 15 Instances With $d=10$ and With $d=100$. Per-Instance Results Are Given in Tables~S13--S15 of the '
      'Supplementary Material.}',
@@ -237,7 +268,7 @@ sets = [('dtlz_a', ['IMMOEAD', 'IMCMOEAD', 'SSDE', 'RVEA', 'OURS'], '6pt', ''),
         ('dtlz_c', ['CPSMOEA', 'SVRNSGAII', 'CSEA'] + FURTHER_D + ['OURS'], '3pt', '')]
 for name, cols, sep, extra in sets:
     lst = ', '.join(NAMES[a] for a in cols[:-1]) + ', and \\ours{}'
-    cap = (f'{IGDDEF} (Mean and Standard Deviation) of {lst} on the Held-Out Suite DTLZ1--DTLZ4 and DTLZ7 ($N=50$, $FE=300$, '
+    cap = (f'{IGDDEF} (Mean and Standard Deviation) of {lst} on the Validation Suite DTLZ1--DTLZ4 and DTLZ7 ($N=50$, $FE=300$, '
            '30 Runs). ' + extra + GAP)
     write(f'{name}.tex', per_instance(CD, cols, dgroups, cap, f'tab:{name}', colsep=sep)[0])
 
@@ -276,9 +307,9 @@ for a in abl:
 print('  NB vs NB-sh:', wlt(sum(nb.values(), [])), {m: wlt(v) for m, v in nb.items()})
 
 # ---------------------------------------------------------------- sensitivity (S9, S10)
-c4 = c('C4'); c4['k'] = c4.config.str.split('_').str[0]
+c4 = zc('Z2') if FINAL else c('C4'); c4['k'] = c4.config.str.split('_').str[0]
 if have('I1'):                                    # population sizes N = 30 and N = 100 (phase I)
-    c4 = pd.concat([c4, c('I1').assign(k=lambda d: d.config)], ignore_index=True)
+    c4 = pd.concat([c4, (zc('Z8') if FINAL else c('I1')).assign(k=lambda d: d.config)], ignore_index=True)
 CS ={k: g.IGDall.values for k, g in c4.groupby(['k', 'prob', 'M', 'D'])}
 sinst = [(p, 3, 10) for p in ('WFG2', 'WFG4', 'WFG6', 'WFG9')] + [(p, 9, 100) for p in ('WFG2', 'WFG4', 'WFG6', 'WFG9')]
 rows = [('s00', 'Default', '')] + [
@@ -289,7 +320,7 @@ rows = [('s00', 'Default', '')] + [
 nrows = [('n030', '$N$', '$30$'), ('n100', '', '$100$')] if have('I1') else []
 best = {i: min(CS[(r[0],) + i].mean() for r in rows + nrows) for i in sinst}
 L = [HEAD, '\\begin{table*}[htbp]', '\\centering', '\\renewcommand{\\arraystretch}{1.15}', '\\setlength{\\tabcolsep}{3pt}',
-     f'\\caption{{Mean {IGDDEF} of \\ours{{}} With One Parameter Varied at a Time Around Its Default Value (Table~I of the Article)'
+     f'\\caption{{Mean {IGDDEF} of \\ours{{}} With One Parameter Varied at a Time Around Its Default Value (Table~S19)'
      + (', and With Population Sizes $N=30$ and $N=100$,' if nrows else '') +
      ' on WFG2, WFG4, WFG6, and WFG9 ($N=50$ Unless Stated, $FE=300$, 30 Runs). The Defaults Are $\\eta_0=0.2$, $F_0=0.5$, $CR_0=0.9$, $K=5$, $k=3$, $\\theta=5$, '
      'and $B_0=10$. The Best Mean Is Highlighted in Gray. $+$, $-$, and $=$ Indicate That a Variant Performs Significantly Better Than, '
@@ -321,6 +352,10 @@ write('sensitivity.tex', '\n'.join(L))
 print('sensitivity total', wlt(tot))
 
 B = {k: g.HV.fillna(0).values for k, g in c5.assign(k=c5.config.str[:3]).groupby(['k', 'prob'])}
+if FINAL:   # B0 = 5 and 20 with F (block Z3, fixed normalization); the default B0 = 10 is F of block AC4
+    z3 = hvf[hvf.config.isin(['b05_B0=5', 'b20_B0=20'])].assign(config=lambda d: d.config.str[:3])
+    B = {k: g.HVnorm.values for k, g in z3.groupby(['config', 'prob'])}
+    B.update({('g15', p): g.HV.values for p, g in RWo.groupby('prob')})
 TC = {k: g.IGDall.values for k, g in c4[c4.k.str.startswith('t')].groupby(['k', 'M', 'D'])}
 
 

@@ -10,7 +10,7 @@ function rescore_rwmop()
 %feasible solution scores 0. Writes results/rwmop_hv.csv.
 
     here = fileparts(mfilename('fullpath'));
-    [P,ISS] = repo_paths();             % PlatEMO, and the folder that holds the Data_<phase> folders
+    [P,ISS] = repo_paths();       % PlatEMO, and the folder that holds the Data_<phase> folders
     addpath(genpath(P));
     f = [dir(fullfile(ISS,'Data_C','C5','**','*.mat')); dir(fullfile(ISS,'Data_C','C8','**','*.mat'))];
     n = numel(f);
