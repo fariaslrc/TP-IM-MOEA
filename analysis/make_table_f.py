@@ -5,11 +5,12 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from scipy.stats import ranksums, friedmanchisquare
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
-TAB = Path(__file__).resolve().parent / 'tables'
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
+TAB = HERE / 'tables'
 TAB.mkdir(exist_ok=True)
-F = pd.read_csv(H / 'c_F1.csv')
-T = pd.read_csv(H / 'f_F1.csv')
+F = pd.read_csv(H / 'c_Z4.csv')        # final model (phase Z, block Z4); c_F1.csv for g15
+T = pd.read_csv(H / 'f_Z4.csv')
 G = {k: g.IGDall.values for k, g in F.groupby(['config', 'prob', 'M', 'D'])}
 inst = sorted({k[1:] for k in G if k[0] == 'g15i'})
 cfgs = ['g15i', 'a025', 'a050', 'a100']

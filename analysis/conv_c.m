@@ -8,9 +8,9 @@ function conv_c()
 %300 are used. Writes conv_c.csv.
 
     here = fileparts(mfilename('fullpath'));
-    [P,ISS] = repo_paths();             % PlatEMO, and the folder that holds the Data_<phase> folders
+    [P,ISS] = repo_paths();       % PlatEMO, and the folder that holds the Data_<phase> folders
     addpath(genpath(P));
-    src = {'OURS',  fullfile(ISS,'Data_C','C1','g15'),   'TPIMMOEA_X_g15_%s_M%d_D%d_%d.mat', 'rec'
+    src = {'OURS',  fullfile(ISS,'Data_X','X1','X1_TPN'),'TPIMMOEA_X_g15_%s_M%d_D%d_%d.mat', 'rec'   % final model (X1 of phase X)
            'SSDE',  fullfile(ISS,'Data_C','C1','SSDE'),  'SSDE_SSDE_%s_M%d_D%d_%d.mat',      'rec'
            'PIEA',  fullfile(ISS,'Data_B','B1','PIEA'),  'PIEA_PIEA_%s_M%d_D%d_%d.mat',      'arch'
            'KRVEA', fullfile(ISS,'Data_P3','P3','KRVEA'),'KRVEA_KRVEA_%s_M%d_D%d_%d.mat',    'arch'

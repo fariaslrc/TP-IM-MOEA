@@ -14,8 +14,9 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from scipy.stats import wilcoxon, friedmanchisquare
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
-TAB = Path(__file__).resolve().parent / 'tables'
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
+TAB = HERE / 'tables'
 TAB.mkdir(exist_ok=True)
 NAMES = {'OURS': 'TP-IM-MOEA', 'IMMOEAD': 'IM-MOEA/D', 'IMCMOEAD': 'IM-C-MOEA/D', 'SSDE': 'SSDE', 'EGES': 'EGES',
          'KRVEA': 'K-RVEA', 'RVEA': 'RVEA', 'MCEAD': 'MCEA/D', 'AVGSAEA': 'AVG-SAEA', 'CPSMOEA': 'CPS-MOEA',
@@ -96,6 +97,24 @@ def scenario(T, val, lower, label, kr_inst=None):
 ABL = pd.concat([c('C3')[COLS], c('C1').query("alg == 'OURS'")[COLS]], ignore_index=True)
 if have('K1'):            # noSOM with topo = 4 (phase K): only the base point of reproduction differs from g15
     ABL = pd.concat([ABL[ABL.alg != 'q06_noSOM'], c('K1').assign(alg='q06_noSOM')[COLS]], ignore_index=True)
+# Final model F of phase AC (placed after the cut used by compare_all_variants.py, which keeps g15 as OURS):
+# X1 (phase X) on WFG, X2 (phase Y) on m = 15/20, X1 (phase AB) on DTLZ, gated_repair_global (AC4) on RWMOP,
+# ablation from phase Z (Z1, Z10), anchors and selection controls from Z4/Z5.
+FINAL = True
+if FINAL:
+    asF = lambda f, cf=None: (lambda d: (d[d.config == cf] if cf else d).assign(alg='OURS'))(pd.read_csv(H / f))
+    WFG = pd.concat([WFG[WFG.alg != 'OURS'], asF('c_X1.csv', 'X1_TPN')[COLS]], ignore_index=True)
+    MO = pd.concat([MO[MO.alg != 'OURS'], asF('c_Y1.csv')[COLS]], ignore_index=True)
+    DT = pd.concat([DT[DT.alg != 'OURS'], asF('c_AB3.csv')[COLS]], ignore_index=True)
+    hvf = pd.read_csv(H / 'rwmop_hv_final.csv')       # one normalization for every algorithm (rescore_rwmop_final.m)
+    hvf['alg'] = hvf.config.replace({'F': 'OURS'})
+    RW = hvf[hvf.alg.isin(['OURS', 'IMMOEAD', 'IMCMOEAD', 'SSDE', 'CTAEA', 'RVEA'])]
+    full = pd.MultiIndex.from_product([RW.alg.unique(), RW.prob.unique(), range(1, 31)], names=['alg', 'prob', 'run'])
+    miss = full.difference(pd.MultiIndex.from_frame(RW[['alg', 'prob', 'run']])).to_frame(index=False).assign(HVnorm=0.0)
+    RW = pd.concat([RW, miss], ignore_index=True).assign(M=0, D=0)
+    z = lambda n: pd.read_csv(H / f'c_{n}.csv').assign(alg=lambda d: d.config)
+    ABL = pd.concat([z('Z1')[COLS], WFG.query("alg == 'OURS'")[COLS]], ignore_index=True)
+    ABL = pd.concat([ABL[ABL.alg != 'q06_noSOM'], z('Z10').assign(alg='q06_noSOM')[COLS]], ignore_index=True)
 NAMES.update({'q01_noRefMap': 'noRM', 'q02_noInfillD': 'noIF', 'q03_noSelRef': 'noRS', 'q04_noPre': 'noPS', 'q05_noCheap': 'noLD',
               'q06_noSOM': 'noSOM', 'q07_withNbh': 'NB', 'q08_withNbh_shuf': 'NB-sh',
               'a025': 'anchors 25\\%', 'a050': 'anchors 50\\%', 'a100': 'anchors 100\\%', 'r1': 'random selection', 'r2': 'stratified random'})
@@ -106,6 +125,8 @@ if have('F1'):
     F1 = c('F1').assign(alg=lambda d: d.config.replace({'g15i': 'OURS'}))
     if have('G1'):
         F1 = pd.concat([F1, c('G1')], ignore_index=True)
+    if FINAL:
+        F1 = pd.concat([z('Z4').assign(alg=lambda d: d.config.replace({'g15i': 'OURS'})), z('Z5')], ignore_index=True)
     R += scenario(F1[COLS], 'IGDall', True, 'Anchors and selection (WFG)')
 D = pd.DataFrame(R, columns=['scenario', 'alg', 'rank', 'pHolm', 'A12', 'large', 'n'])
 print(D.to_string(index=False))

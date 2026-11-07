@@ -3,10 +3,11 @@ written by rescore_rwmop.m). Usage: python make_table_rwnorm.py"""
 from pathlib import Path
 import pandas as pd
 
-H = Path(__file__).resolve().parent.parent / 'results'     # per-run results
-TAB = Path(__file__).resolve().parent / 'tables'
+HERE = Path(__file__).resolve().parent                     # analysis scripts
+H = HERE.parent / 'results'                                # per-run results
+TAB = HERE / 'tables'
 TAB.mkdir(exist_ok=True)
-R = pd.read_csv(H / 'rwmop_norm.csv')
+R = pd.read_csv(H / 'rwmop_norm_final.csv')   # union including the final model (rescore_rwmop_final.m)
 R = R.iloc[R.prob.str[5:].astype(int).argsort()]
 
 
