@@ -1,7 +1,7 @@
 function test_x1_integration()
-%TEST_X1_INTEGRATION CASA-only, manually launched complete-pipeline checks.
-% Configure the documented PlatEMO overlay/path first. On CASA set the two
-% host variables required by ac_check_host, then call test_x1_integration.
+%TEST_X1_INTEGRATION Execution-machine-only (ac_check_host), manually launched complete-pipeline checks.
+% Configure the documented PlatEMO overlay/path first. Set TPIMMOEA_EXECUTION_HOST to this
+% computer's COMPUTERNAME (ac_check_host), then call test_x1_integration.
 % The host guard is the FIRST operation: this function must not start any
 % algorithm locally. No benchmark suite, metric, figure or file is produced.
 % These tiny synthetic runs verify contracts, not algorithm performance or
@@ -47,7 +47,7 @@ function test_x1_integration()
         fprintf('test_x1_integration: wrapper %s passed.\n',func2str(wrappers{k}));
     end
     fprintf(['test_x1_integration: 19 profiles, identity parity, old-44 ', ...
-        'compatibility and 4 wrappers passed on CASA.\n']);
+        'compatibility and 4 wrappers passed on the execution machine.\n']);
 end
 
 function record = runOne(algorithmConstructor,parameters,seed)

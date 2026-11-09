@@ -1,35 +1,39 @@
-# Fase AD: frentes desconexas e irregulares (propostas A e B)
+# Phase AD: disconnected and irregular fronts (proposals A and B)
 
-Data: 2026-11-05. Pré-registro feito antes de qualquer execução da fase AD.
+*English translation of the preregistration, which was written in Portuguese. Dates, rules, and thresholds are unchanged.*
 
-## Motivação
+Date: 2026-11-05. Preregistered before any run of phase AD.
 
-O modelo final F (X1 com o portão geométrico da ordenação e o reparo global, perfil `gated_repair_global`) é o 7º de 15 no DTLZ. As maiores perdas estão no DTLZ7, com frente desconexa: F fica em 13º a 14º com m = 6 e 9, e o IGD é de 4 a 14 vezes o do melhor concorrente. Medida geométrica feita antes desta fase, sem otimização: com N = 50, a frente do DTLZ7 alcança só 60%, 52% e 82% das direções de referência para m = 3, 6 e 9 (o WFG3, com frente degenerada, 24%, 31% e 78%; DTLZ2, WFG2 e WFG4, 100%). No DTLZ7 com d = 10, a leitura na célula piora o resultado em relação ao g15 com m = 6 e 9.
+## Motivation
 
-**Uso do DTLZ.** As propostas foram motivadas por resultados do DTLZ, que deixa de ser uma suíte de validação independente. Se uma proposta for adotada, o artigo deve validá-la em uma suíte nova, rodada uma única vez com o modelo e os critérios fixados (proposta: MaF), e declarar que o DTLZ passou a ser suíte de desenvolvimento.
+The final model F (X1 with the geometric gate of the ordering phase and the global repair, profile `gated_repair_global`) ranks 7th of 15 on DTLZ. The largest losses are on DTLZ7, whose front is disconnected: F ranks 13th to 14th with m = 6 and 9, and its IGD is 4 to 14 times that of the best competitor. A geometric measurement made before this phase, without optimization: with N = 50, the front of DTLZ7 reaches only 60%, 52%, and 82% of the reference directions for m = 3, 6, and 9 (WFG3, with a degenerate front, 24%, 31%, and 78%; DTLZ2, WFG2, and WFG4, 100%). On DTLZ7 with d = 10, the cell read-out worsens the result relative to g15 with m = 6 and 9.
 
-## Propostas
+**Use of DTLZ.** The proposals were motivated by DTLZ results, so DTLZ stops being an independent validation suite. If a proposal is adopted, the article must validate it on a new suite, run once with the model and criteria fixed (proposed: MaF), and state that DTLZ became a development suite.
 
-- **A, nichos inalcançáveis (`nicheReach`).** Uma direção que recebe 2 candidatos avaliados dirigidos a ela como nicho vazio (pelo preenchimento de nichos ou pela prioridade de nicho vazio da pré-seleção), sem que nenhum caia nela, é tratada como inalcançável por 5 gerações: sai do preenchimento de nichos e perde a prioridade de nicho vazio na pré-seleção. Qualquer solução avaliada que caia nela a reativa na hora. Inspiração: vetores de referência adaptativos para frentes irregulares.
-- **B, leitura sensível a lacunas (`gapRead`).** Um vizinho k do nó j do pai só entra na célula se alguma solução não dominada do arquivo estiver no arco entre as direções de j e k (ângulo até a bissetriz no máximo igual à metade do ângulo j-k). Assim, a célula não mistura regiões separadas por uma lacuna da frente.
-  - **Ajuste de projeto declarado, feito antes de qualquer execução:** a primeira versão usava um quarto do ângulo. Um teste geométrico com amostras da frente verdadeira (50 a 100 pontos não dominados) mostrou que ela cortava a maioria das arestas também em frentes contínuas (DTLZ2 com m = 3: 26% a 48% das arestas mantidas). Com metade do ângulo, as frentes contínuas mantêm 85% a 93% das arestas com m = 3 e 6 e cerca de 60% com m = 9, contra 30% a 60% no DTLZ7.
-- **Controle de B (`final_Brand`).** Em cada geração, corta o mesmo número de arestas que o teste de B cortaria, escolhidas ao acaso, com um gerador privado que não altera o gerador principal.
+## Proposals
 
-## Blocos (runs 1 a 30, mesmas sementes do artigo)
+- **A, unreachable niches (`nicheReach`).** A direction that receives 2 evaluated candidates aimed at it as an empty niche (by niche filling or by the empty-niche priority of prescreening), none of which lands in it, is treated as unreachable for 5 generations: it leaves niche filling and loses the empty-niche priority in prescreening. Any evaluated solution that lands in it reactivates it immediately. Inspiration: adaptive reference vectors for irregular fronts.
+- **B, gap-aware read-out (`gapRead`).** A neighbor k of the parent's node j enters the cell only if some nondominated archive member lies on the arc between the directions of j and k (angle to the bisector at most half the j–k angle). The cell thus does not mix regions separated by a gap in the front.
+  - **Declared design adjustment, made before any run:** the first version used a quarter of the angle. A geometric test with samples of the true front (50 to 100 nondominated points) showed that it cut most edges also on continuous fronts (DTLZ2 with m = 3: 26% to 48% of the edges kept). With half the angle, continuous fronts keep 85% to 93% of the edges with m = 3 and 6 and about 60% with m = 9, against 30% to 60% on DTLZ7.
+- **Control for B (`final_Brand`).** In each generation, it cuts the same number of edges that the test of B would cut, chosen at random, with a private generator that does not alter the main generator.
 
-| Bloco | Instâncias | Perfis | Execuções |
+## Blocks (runs 1 to 30, the same seeds as the article)
+
+| Block | Instances | Profiles | Runs |
 |---|---|---|---:|
-| AD1 | WFG m = 3, 6, 9 (54) | final_A, final_B, final_AB, final_Brand | 6.480 |
-| AD2 | WFG m = 15, 20 (36) | os mesmos quatro | 4.320 |
-| AD3 | DTLZ1–4, 7, m = 3, 6, 9 (30) | os mesmos quatro | 3.600 |
-| AD4 | RWMOP1–35 | final_A, final_B, final_AB | 3.150 |
+| AD1 | WFG m = 3, 6, 9 (54) | final_A, final_B, final_AB, final_Brand | 6,480 |
+| AD2 | WFG m = 15, 20 (36) | the same four | 4,320 |
+| AD3 | DTLZ1–4, 7, m = 3, 6, 9 (30) | the same four | 3,600 |
+| AD4 | RWMOP1–35 | final_A, final_B, final_AB | 3,150 |
 
-Referência de todas as comparações: F (X1 da fase X no WFG m ≤ 9, X2 da fase Y no WFG m = 15/20, X1 da fase AB no DTLZ, `gated_repair_global` do bloco AC4 no RWMOP). O smoke test confere que o código novo não altera F.
+Reference for every comparison: F (X1 of phase X on WFG m ≤ 9, X2 of phase Y on WFG m = 15/20, X1 of phase AB on DTLZ, `gated_repair_global` of block AC4 on RWMOP). The smoke test checks that the new code does not change F.
 
-## Critérios (fixados agora)
+## Criteria (fixed now)
 
-1. **Melhora no DTLZ:** signed-rank pareado por instância contra F, com Holm sobre final_A, final_B e final_AB; p de Holm < 0,05, a favor da proposta, e razão de IGD com limite superior do IC 95% abaixo de 1 (bootstrap por agrupamento sobre os problemas, 10.000 reamostragens, semente 1).
-2. **Não inferioridade nas demais suítes:** limite superior do IC abaixo de 1,03 no WFG m = 3 a 9, no WFG m = 15/20 e em cada m; no RWMOP, nenhum problema com perda de HV médio acima de 0,01 e signed-rank não significativamente desfavorável (5%).
-3. **Escolha:** se final_AB cumprir 1 e 2, ele é adotado; senão, entre final_A e final_B, o que cumprir 1 e 2 com a menor razão no DTLZ; se nenhum cumprir, F permanece.
-4. **Atribuição de B à continuidade:** final_B contra final_Brand no DTLZ (signed-rank, 5%). Se o controle empatar, o ganho de B vem de cortar arestas, e não do teste de continuidade, e o texto deve dizer isso.
-5. **Relatado à parte:** DTLZ7 sozinho, por m e d, e a posição diante dos 15 algoritmos em todas as suítes.
+1. **Improvement on DTLZ:** signed-rank test paired by instance against F, with Holm's correction over final_A, final_B, and final_AB; Holm p < 0.05 in favor of the proposal, and IGD ratio with the upper bound of the 95% CI below 1 (cluster bootstrap over problems, 10,000 resamples, seed 1).
+2. **Non-inferiority on the other suites:** upper bound of the CI below 1.03 on WFG m = 3 to 9, on WFG m = 15/20, and on each m; on RWMOP, no problem with a loss of mean HV above 0.01 and a signed-rank test not significantly unfavorable (5%).
+3. **Choice:** if final_AB meets 1 and 2, it is adopted; otherwise, between final_A and final_B, the one that meets 1 and 2 with the smallest ratio on DTLZ; if none does, F remains.
+4. **Attribution of B to continuity:** final_B against final_Brand on DTLZ (signed-rank, 5%). If the control ties, the gain of B comes from cutting edges, not from the continuity test, and the text must say so.
+5. **Reported separately:** DTLZ7 alone, by m and d, and the position against the 15 algorithms on every suite.
+
+*Outcome, recorded after the runs (analysis in `analysis/analyze_ad.py`): no proposal met criteria 1 and 2, so F remains the final model (Table S20 of the supplementary material).*

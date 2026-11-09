@@ -1,6 +1,6 @@
 function [status,elapsed,note] = run_one_ac_task(t,source)
 %RUN_ONE_AC_TASK Strict budgeted run; errors never become scientific results.
-% Intended caller is run_ac. Direct invocation also enforces the CASA guard.
+% Intended caller is run_ac. Direct invocation also enforces the host guard (ac_check_host).
     status = 'ERROR'; note = ''; t0 = tic; tempFile = '';
     try
         host = ac_check_host();

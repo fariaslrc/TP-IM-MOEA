@@ -1,8 +1,9 @@
 function host = ac_check_host()
-%AC_CHECK_HOST Explicit CASA attestation plus actual Windows hostname match.
+%AC_CHECK_HOST Guard against starting a long campaign on the wrong machine:
+%real execution requires TPIMMOEA_EXECUTION_HOST to name this computer
+%(its COMPUTERNAME). Dry runs need no host configuration.
     host = getenv('COMPUTERNAME');
-    target = getenv('TPIMMOEA_CASA_HOSTNAME');
-    assert(strcmpi(getenv('TPIMMOEA_EXECUTION_HOST'),'CASA') && ...
-        ~isempty(target) && ~isempty(host) && strcmpi(strtrim(target),strtrim(host)), ...
-        'AC:Host','Real execution is CASA only. On CASA set TPIMMOEA_EXECUTION_HOST=CASA and TPIMMOEA_CASA_HOSTNAME to its actual COMPUTERNAME. Dry runs need no host configuration.');
+    target = getenv('TPIMMOEA_EXECUTION_HOST');
+    assert(~isempty(target) && ~isempty(host) && strcmpi(strtrim(target),strtrim(host)), ...
+        'AC:Host','Real execution requires TPIMMOEA_EXECUTION_HOST set to this computer''s COMPUTERNAME. Dry runs need no host configuration.');
 end

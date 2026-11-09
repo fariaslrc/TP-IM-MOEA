@@ -1,5 +1,5 @@
 function run_smoke_test_ac()
-%RUN_SMOKE_TEST_AC  Installation check of phase AC (version 3), CASA only, about 15 min.
+%RUN_SMOKE_TEST_AC  Installation check of phase AC (version 3), execution machine only (ac_check_host), about 15 min.
 %Every line must end in OK:
 %   1. static checks (grids, seeds, profiles), unit tests and the synthetic integration test;
 %   2. quadprog available (repair profiles);
