@@ -1,225 +1,232 @@
-# Protocolo AC: cooperação, movimento e reparo da X1
+# Phase AC protocol: cooperation, movement, and repair in X1
 
-Versão de implementação: 3 (ver a seção seguinte); a versão 1 é mantida abaixo como registro. Data: 2026-11-04. Estado: protocolo prospectivo, sem resultados da campanha AC. Esta versão define hipóteses e critérios de avaliação; não demonstra superioridade. Mudanças posteriores ao exame dos resultados devem gerar nova versão e ser identificadas como desenvolvimento.
+*English translation of the protocol, which was written in Portuguese. Dates, rules, and thresholds are unchanged.*
 
-## Versão 3 (2026-11-04): esta seção prevalece sobre as demais
+Implementation version: 3 (see the next section); version 1 is kept below as a record. Date: 2026-11-04. Status: prospective protocol, written without any result of the AC campaign. This version defines hypotheses and evaluation criteria; it does not demonstrate superiority. Any change made after the results are examined must create a new version and be identified as development.
 
-Fixada antes de qualquer execução AC. Substitui as versões 1 e 2, que ficam abaixo apenas como registro. As versões 1 e 2 vieram de um rascunho e foram revisadas antes de qualquer execução; nenhum resultado AC foi visto.
+## Version 3 (2026-11-04): this section prevails over the others
 
-### O que a revisão descartou, e por quê
+Fixed before any AC run. It replaces versions 1 and 2, which remain below only as a record. Versions 1 and 2 came from a draft and were revised before any run; no AC result had been seen.
 
-1. **Grafo de vizinhos mútuos com k = 4 (`graphMode = 'mutual'`).** Ele fragmenta o mapa: com N = 50, o grau médio cai para 1,7 em m = 9, 1,6 em m = 15 e 1,3 em m = 20, com 15, 10 e 17 componentes desconexas, e há nós sem vizinho em m = 9. Um ganho do perfil `cooperative` em m = 15/20 viria de desligar a cooperação, e não de melhorá-la, e o controle embaralhado manteria a mesma fragmentação. O grafo da X1 do artigo é mantido.
-2. **Massa dos vizinhos normalizada para somar exatamente 1.** A normalização também aumentava pesos: um único vizinho com peso gaussiano 0,61 passava a ser treinado com peso 1, igual ao vencedor. Agora o limite só reduz (`sum(H) > beta`).
-3. **Movimento aprendido.** Com o portão de 300 avaliações, só atuaria no RWMOP, não ataca nenhuma limitação identificada da X1 (m = 15/20 e DTLZ, ambos com 300 avaliações), e somaria cerca de 5 h de execução e um mecanismo novo sem evidência prévia. O código permanece no repositório, sem perfil na campanha.
-4. **Pesos de confiança na leitura (`supportWeights`).** Distorcem os coeficientes do NNLS sem justificativa independente. Não entram na campanha.
-5. **Modos de reparo além de `infeasible`.** Removidos do código.
+### What the revision discarded, and why
 
-### O que a revisão acrescentou: o portão geométrico da ordenação
+1. **Mutual-neighbor graph with k = 4 (`graphMode = 'mutual'`).** It fragments the map: with N = 50, the mean degree drops to 1.7 at m = 9, 1.6 at m = 15, and 1.3 at m = 20, with 15, 10, and 17 disconnected components, and there are nodes without neighbors at m = 9. A gain of the `cooperative` profile at m = 15/20 would come from switching cooperation off rather than improving it, and the shuffled control would keep the same fragmentation. The X1 graph of the article is kept.
+2. **Neighbor mass normalized to sum exactly to 1.** The normalization also increased weights: a single neighbor with Gaussian weight 0.61 would be trained with weight 1, the same as the winner. The cap now only reduces (`sum(H) > beta`).
+3. **Learned movement.** With the 300-evaluation gate, it would act only on RWMOP, it does not address any identified limitation of X1 (m = 15/20 and DTLZ, both with 300 evaluations), and it would add about 5 h of computation and a new mechanism without prior evidence. The code remains in the repository, without a profile in the campaign.
+4. **Confidence weights in the read-out (`supportWeights`).** They distort the NNLS coefficients without independent justification. They are not part of the campaign.
+5. **Repair modes other than `infeasible`.** Removed from the code.
 
-Com N = 50, o `UniformPoint` usa resolução H1 = 8, 2 e 2 na camada externa para m = 3, 6 e 9, e H1 = 1 para m = 15 e 20. Com H1 = 1, cada camada é formada pelos vértices de um simplex, e todas as direções de uma camada são adjacentes entre si. Não existe vizinhança local para preservar, e a fase de ordenação vira uma média quase global. A regra (`orderGate`) aplica a ordenação apenas quando H1 ≥ 2, e depende só de N e m.
+### What the revision added: the geometric gate of the ordering phase
 
-**Origem da regra, declarada:** a perda da X1 em m = 15/20 (fase AB) motivou a investigação. A regra, porém, decorre da geometria da grade e não de um ajuste aos resultados. O perfil `gated` (X1 com o portão) coincide com a X1 onde H1 ≥ 2 e com a X2 da fase Y onde H1 = 1, nas mesmas sementes. Por isso ele não é rodado de novo: o smoke test verifica a igualdade exata no run 1, e os resultados de `gated` são os das fases X, AB e Y.
+With N = 50, `UniformPoint` uses outer-layer resolution H1 = 8, 2, and 2 for m = 3, 6, and 9, and H1 = 1 for m = 15 and 20. With H1 = 1, each layer consists of the vertices of a simplex, and all directions of a layer are adjacent to one another. There is no local neighborhood to preserve, and the ordering phase becomes an almost global average. The rule (`orderGate`) applies the ordering phase only when H1 ≥ 2, and it depends only on N and m.
 
-### Blocos (runs 1 a 30)
+**Declared origin of the rule:** the loss of X1 at m = 15/20 (phase AB) motivated the investigation. The rule, however, follows from the geometry of the lattice and not from a fit to the results. The `gated` profile (X1 with the gate) coincides with X1 where H1 ≥ 2 and with X2 of phase Y where H1 = 1, on the same seeds. It is therefore not rerun: the smoke test checks exact equality on run 1, and the results of `gated` are those of phases X, AB, and Y.
 
-| Bloco | Instâncias | Perfis | Execuções |
+### Blocks (runs 1 to 30)
+
+| Block | Instances | Profiles | Runs |
 |---|---|---|---:|
-| AC1 | WFG m = 3, 6, 9 (54) | gated_transport, gated_mass, gated_direct, coop3 | 6.480 |
-| AC2 | WFG m = 15, 20 (36) | os mesmos quatro | 4.320 |
-| AC3 | DTLZ1–4, 7, m = 3, 6, 9 (30) | os mesmos quatro | 3.600 |
-| AC4 | RWMOP1–35 (orçamentos de Kumar) | coop3, gated_repair_global, gated_repair_som | 3.150 |
+| AC1 | WFG m = 3, 6, 9 (54) | gated_transport, gated_mass, gated_direct, coop3 | 6,480 |
+| AC2 | WFG m = 15, 20 (36) | the same four | 4,320 |
+| AC3 | DTLZ1–4, 7, m = 3, 6, 9 (30) | the same four | 3,600 |
+| AC4 | RWMOP1–35 (Kumar budgets) | coop3, gated_repair_global, gated_repair_som | 3,150 |
 
-- `gated_transport`: transporte dos protótipos de objetivo quando ideal e nadir mudam.
-- `gated_mass`: massa total dos vizinhos limitada a 1 na fase de ordenação (só reduz).
-- `gated_direct`: só nós com solução própria nesta chamada de treino entram na leitura da célula.
-- `coop3`: as três mudanças juntas.
-- `gated_repair_*`: reparo das restrições por modelos afins, global ou com suporte do SOM, só enquanto o arquivo não tiver solução factível.
+- `gated_transport`: transport of the objective prototypes when the ideal and nadir points change.
+- `gated_mass`: total neighbor mass capped at 1 in the ordering phase (it only reduces).
+- `gated_direct`: only nodes with their own solution in the current training call enter the cell read-out.
+- `coop3`: the three changes together.
+- `gated_repair_*`: repair of the constraints with affine models, global or supported by the SOM, only while the archive has no feasible solution.
 
-### Hipóteses e critérios (fixados agora)
+### Hypotheses and criteria (fixed now)
 
-Referência de todas as comparações: `gated` (X1 das fases X e AB onde H1 ≥ 2; X2 da fase Y onde H1 = 1).
+Reference for every comparison: `gated` (X1 of phases X and AB where H1 ≥ 2; X2 of phase Y where H1 = 1).
 
-- **H0, portão:** descritiva; `gated` contra a X1 e o g15 em todas as suítes, com os dados existentes.
-- **H-A, cooperação (AC1 a AC3):** cada um dos quatro perfis contra `gated`, com Holm sobre os quatro perfis dentro de cada suíte (WFG m = 3 a 9, WFG m = 15/20, DTLZ). Um perfil é **adotado** se (1) melhorar significativamente em pelo menos uma suíte (signed-rank pareado por instância, p de Holm < 0,05, razão de IGD com limite superior do IC 95% abaixo de 1) e (2) não piorar nenhuma (limite superior abaixo de 1,03 em cada suíte e em cada m). Havendo mais de um, prefere-se `coop3` se ele se qualificar; senão, o de menor razão média nas três suítes.
-- **H-C, reparo (AC4):** nos problemas em que `gated` termina sem solução factível em mais da metade das execuções, aumento de pelo menos 10 pontos percentuais na taxa de execuções com solução factível final; nos demais, HV não pior (margem absoluta de 0,01). Atribuição ao SOM: `gated_repair_som` contra `gated_repair_global`. Se o global empatar ou vencer, o ganho é do reparo, e não da topologia.
-- **coop3 no RWMOP:** descritivo, para completar a tabela do modelo caso ele seja adotado.
+- **H0, gate:** descriptive; `gated` against X1 and g15 on every suite, with the existing data.
+- **H-A, cooperation (AC1 to AC3):** each of the four profiles against `gated`, with Holm's correction over the four profiles within each suite (WFG m = 3 to 9, WFG m = 15/20, DTLZ). A profile is **adopted** if (1) it improves significantly on at least one suite (signed-rank test paired by instance, Holm p < 0.05, IGD ratio with the upper bound of the 95% CI below 1) and (2) it worsens none (upper bound below 1.03 on each suite and each m). If more than one qualifies, `coop3` is preferred if it qualifies; otherwise, the one with the smallest mean ratio over the three suites.
+- **H-C, repair (AC4):** on the problems where `gated` ends without a feasible solution in more than half of the runs, an increase of at least 10 percentage points in the rate of runs with a feasible final set; on the others, HV not worse (absolute margin 0.01). Attribution to the SOM: `gated_repair_som` against `gated_repair_global`. If the global version ties or wins, the gain belongs to the repair and not to the topology.
+- **coop3 on RWMOP:** descriptive, to complete the table of the model in case it is adopted.
 
-Testes: signed-rank pareado por instância com Holm, razão de médias geométricas com bootstrap por agrupamento sobre os problemas (10.000 reamostragens, semente 1), como nas fases anteriores. O HV do RWMOP usa a normalização fixa de `rwmop_norm.csv`, calculada como em `rescore_rwmop_y.m`, para ser comparável aos números do artigo.
+Tests: signed-rank test paired by instance with Holm's correction, ratio of geometric means with a cluster bootstrap over problems (10,000 resamples, seed 1), as in the previous phases. The RWMOP HV uses the fixed normalization of `rwmop_norm.csv`, computed as in `rescore_rwmop_y.m`, to be comparable with the numbers of the article at that time.
 
-### Adendo de 2026-11-05: bloco AC5 (fixado antes de rodar)
+### Addendum of 2026-11-05: block AC5 (fixed before running)
 
-Resultado de AC1 a AC4 (análise em `c_analysis/analyze_ac.py`): pela regra acima, `gated_mass` é adotado (DTLZ 0,973, IC 95% [0,958, 0,989], p de Holm 0,013; neutro no WFG). O reparo tornou factíveis todas as execuções do RWMOP30 a 35, e `gated_repair_som` empatou com `gated_repair_global` nos 35 problemas, então o reparo entra na versão global. Como `gated_mass` não foi rodado no RWMOP, o bloco AC5 completa o modelo:
+Result of AC1 to AC4 (analysis in `analysis/analyze_ac.py`): by the rule above, `gated_mass` is adopted (DTLZ 0.973, 95% CI [0.958, 0.989], Holm p 0.013; neutral on WFG). The repair made every run of RWMOP30 to 35 feasible, and `gated_repair_som` tied with `gated_repair_global` on all 35 problems, so the repair enters in its global version. Since `gated_mass` had not been run on RWMOP, block AC5 completes the model:
 
-| Bloco | Instâncias | Perfis | Execuções |
+| Block | Instances | Profiles | Runs |
 |---|---|---|---:|
-| AC5 | RWMOP1–35 | gated_mass, gated_mass_repair_global | 2.100 |
+| AC5 | RWMOP1–35 | gated_mass, gated_mass_repair_global | 2,100 |
 
-Critérios:
-- **`gated_mass` no RWMOP contra `gated`:** não inferior se nenhum problema perder mais de 0,01 de HV médio e o signed-rank não for significativamente desfavorável (5%).
-- **`gated_mass_repair_global` contra `gated_repair_global`:** mesma regra de HV, e a taxa de execuções com solução factível final no RWMOP30 a 35 não pode cair.
-- **Modelo final:** se os dois critérios passarem, o modelo é a X1 com o portão da ordenação, a massa limitada e o reparo global. Se `gated_mass` falhar no RWMOP, a massa limitada não entra, e o modelo é a X1 com o portão e o reparo global.
+Criteria:
+- **`gated_mass` on RWMOP against `gated`:** non-inferior if no problem loses more than 0.01 of mean HV and the signed-rank test is not significantly unfavorable (5%).
+- **`gated_mass_repair_global` against `gated_repair_global`:** the same HV rule, and the rate of runs with a feasible final set on RWMOP30 to 35 must not decrease.
+- **Final model:** if both criteria pass, the model is X1 with the ordering gate, the capped mass, and the global repair. If `gated_mass` fails on RWMOP, the capped mass is not included, and the model is X1 with the ordering gate and the global repair.
 
-## Objetivo e alegações permitidas
+*Outcome, recorded after AC5 (analysis in `analysis/analyze_ac5.py`): `gated_mass` failed the RWMOP criterion, so the final model is X1 with the ordering gate and the global repair (profile `gated_repair_global`), as reported in Table S20 of the supplementary material.*
 
-Testar se a estrutura do SOM produz benefício mensurável no aprendizado e na reprodução, mantendo o SOM central conforme a orientação de Aluizio. A arquitetura pode mudar. O objetivo competitivo é melhorar os resultados nos estratos WFG com m = 3, 6, 9, 15 e 20, DTLZ e RWMOP, sem substituir evidência por uma promessa de liderança universal.
+---
 
-O ranking será sempre condicionado ao conjunto de problemas, dimensionalidades, orçamento, comparadores e métrica. Vencer uma média global não demonstra liderança em todos os nichos. Os dados DTLZ já examinados no desenvolvimento anterior não constituem uma família inédita de validação. Sementes novas reduzem a reutilização das mesmas realizações, mas não eliminam adaptação ao benchmark.
+*The sections below are version 1 of the protocol, kept as a record. Where they differ from version 3, version 3 prevails.*
 
-## Implementações e hipóteses
+## Objective and permitted claims
 
-Todos os perfis usam `TPIMMOEA_X`, com os parâmetros declarados por `x1_parameters(profile,outN)`. O argumento 45 habilita as extensões. Os argumentos históricos permanecem explicitamente registrados. O argumento 29 (`instr`) deve ser zero: diagnósticos que chamam funções verdadeiras fora de `Problem.Evaluation` invalidariam o orçamento.
+To test whether the structure of the SOM produces a measurable benefit in learning and in reproduction, keeping the SOM at the center of the method, a design requirement of the project. The architecture may change. The competitive objective is to improve the results on the WFG strata with m = 3, 6, 9, 15, and 20, on DTLZ, and on RWMOP, without replacing evidence with a promise of universal leadership.
 
-| Perfil | Alteração e papel experimental |
+The ranking will always be conditioned on the set of problems, dimensionalities, budget, comparators, and metric. Winning a global average does not demonstrate leadership in every niche. The DTLZ data already examined in earlier development do not constitute an unseen validation family. New seeds reduce the reuse of the same realizations but do not eliminate adaptation to the benchmark.
+
+## Implementations and hypotheses
+
+All profiles use `TPIMMOEA_X`, with the parameters declared by `x1_parameters(profile,outN)`. Argument 45 enables the extensions. The historical arguments remain explicitly recorded. Argument 29 (`instr`) must be zero: diagnostics that call the true functions outside `Problem.Evaluation` would invalidate the budget.
+
+| Profile | Change and experimental role |
 |---|---|
-| `g15` | TP-IM-MOEA histórico, sem as extensões X1; controle de referência. |
-| `legacy` | X1 anterior, com vizinhança e aprendizado por vizinhança; argumento 45 vazio. |
-| `transport` | Apenas transporte dos protótipos quando muda a normalização dos objetivos. |
-| `direct` | Apenas exigência de observações diretas para a elegibilidade de leitura. |
-| `mass` | Apenas massa total extradiagonal fixa em 1; peso do BMU igual a 1. |
-| `sparse` | Apenas grafo de vizinhos mútuos, k = 4. |
-| `cooperative` | Combina transporte, suporte direto, massa controlada, grafo esparso e confiança na leitura. |
-| `cooperative_no_order` | Mantém a elegibilidade por suporte direto; remove somente a ordenação da vizinhança no treino. |
-| `cooperative_shuffled` | Permuta a adjacência antes dos pesos de confiança atuais; preserva a sequência de graus, não todos os pesos finais. |
-| `cooperative_proximity` | Leitura por proximidade no codebook com cardinalidade comparável; controle da necessidade do grafo. |
-| `move_node` | Movimento aprendido usando apenas o nó. |
-| `move_global` | Movimento aprendido global, sem a localidade do SOM. |
-| `move_som` | Movimento aprendido com suporte no SOM. |
-| `move_proximity` | Movimento com agrupamento por proximidade em decisões. |
-| `move_shrink` | Controle do efeito de encurtar o passo, sem atribuir ganho à direção aprendida. |
-| `repair_global` | Reparo com modelos globais das restrições individuais. |
-| `repair_proximity` | Reparo com suporte por proximidade em decisões. |
-| `repair_som` | Reparo com suporte fornecido pelo SOM. |
-| `combined` | Cooperação, movimento SOM e reparo SOM, para estudar compatibilidade dos mecanismos. |
+| `g15` | Historical TP-IM-MOEA, without the X1 extensions; reference control. |
+| `legacy` | Earlier X1, with neighborhood and neighborhood learning; argument 45 empty. |
+| `transport` | Only the transport of the prototypes when the normalization of the objectives changes. |
+| `direct` | Only the requirement of direct observations for read-out eligibility. |
+| `mass` | Only the total off-diagonal mass fixed at 1; BMU weight equal to 1. |
+| `sparse` | Only the mutual-neighbor graph, k = 4. |
+| `cooperative` | Combines transport, direct support, controlled mass, sparse graph, and confidence in the read-out. |
+| `cooperative_no_order` | Keeps eligibility by direct support; removes only the neighborhood ordering in training. |
+| `cooperative_shuffled` | Permutes the adjacency before the current confidence weights; preserves the degree sequence, not all final weights. |
+| `cooperative_proximity` | Read-out by proximity in the codebook with comparable cardinality; control for the need of the graph. |
+| `move_node` | Learned movement using only the node. |
+| `move_global` | Global learned movement, without the locality of the SOM. |
+| `move_som` | Learned movement with support from the SOM. |
+| `move_proximity` | Movement with grouping by proximity in decision space. |
+| `move_shrink` | Control for the effect of shortening the step, without attributing a gain to the learned direction. |
+| `repair_global` | Repair with global models of the individual constraints. |
+| `repair_proximity` | Repair with support by proximity in decision space. |
+| `repair_som` | Repair with support provided by the SOM. |
+| `combined` | Cooperation, SOM movement, and SOM repair, to study the compatibility of the mechanisms. |
 
-Os cinco controles de movimento e os três controles de reparo partem de `cooperative`. O controle combinado não é selecionado automaticamente. Os wrappers `TPIMMOEA_X1C`, `TPIMMOEA_X1M`, `TPIMMOEA_X1F` e `TPIMMOEA_X1CMF` permitem uso direto dos mecanismos, mas o executor AC usa o mesmo nome de classe e registra o perfil para evitar diferenças acidentais de configuração.
+The five movement controls and the three repair controls start from `cooperative`. The combined control is not selected automatically. The wrappers `TPIMMOEA_X1C`, `TPIMMOEA_X1M`, `TPIMMOEA_X1F`, and `TPIMMOEA_X1CMF` allow direct use of the mechanisms, but the AC runner uses the same class name and records the profile to avoid accidental configuration differences.
 
-H-A: transportar coordenadas, distinguir suporte direto, controlar massa e restringir o grafo melhora a cooperação sem difundir informação indistintamente. A superioridade de `cooperative` sobre `legacy` não basta para atribuir o ganho à topologia: são necessários os controles de permutação, proximidade e ordenação. As quatro variantes isoladas diagnosticam o mecanismo; não constituem um fatorial completo e não identificam todas as interações.
+H-A: transporting coordinates, distinguishing direct support, controlling mass, and restricting the graph improve cooperation without spreading information indiscriminately. The superiority of `cooperative` over `legacy` is not enough to attribute the gain to the topology: the permutation, proximity, and ordering controls are required. The four isolated variants diagnose the mechanism; they are not a full factorial design and do not identify all interactions.
 
-H-B: pares históricos locais de soluções factíveis fornecem uma direção útil de movimento. O mecanismo usa um buffer cronológico de até 300 avaliações, pares factíveis, vizinhança mútua e distância RMS normalizada de até 0,25. O tamanho efetivo do suporte é uma medida de concentração dos pesos, não de observações estatisticamente independentes. Não chamar essa direção de gradiente causal. Os controles distinguem informação direcional, localidade do SOM e simples redução do passo.
+H-B: local historical pairs of feasible solutions provide a useful direction of movement. The mechanism uses a chronological buffer of up to 300 evaluations, feasible pairs, mutual neighborhood, and a normalized RMS distance of at most 0.25. The effective support size is a measure of the concentration of the weights, not of statistically independent observations. This direction is not to be called a causal gradient. The controls distinguish directional information, locality of the SOM, and a simple reduction of the step.
 
-H-C: modelos locais das restrições individuais aumentam a probabilidade de obter e manter viabilidade. O reparo é uma projeção aproximada baseada em dados, não uma garantia de viabilidade verdadeira. O candidato reparado continua exigindo avaliação verdadeira dentro do orçamento. Suporte insuficiente aciona o comportamento de fallback documentado na implementação.
+H-C: local models of the individual constraints increase the probability of obtaining and keeping feasibility. The repair is an approximate data-driven projection, not a guarantee of true feasibility. The repaired candidate still requires a true evaluation within the budget. Insufficient support triggers the fallback behavior documented in the implementation.
 
-Portões de ativação (fixados antes dos resultados): o movimento só atua com `Problem.FE >= 300`, logo não atua nas suítes de 300 avaliações e só pode ser avaliado no RWMOP; o reparo, por padrão, só atua enquanto o arquivo não tiver membro factível (restauração de viabilidade), com modo periódico disponível como variante declarada. H-B passa a ser testada apenas no RWMOP, e a não interferência nas suítes caras deve ser verificada por igualdade exata com `cooperative`.
+Activation gates (fixed before the results): the movement acts only with `Problem.FE >= 300`, so it does not act on the 300-evaluation suites and can only be assessed on RWMOP; the repair, by default, acts only while the archive has no feasible member (feasibility restoration), with a periodic mode available as a declared variant. H-B is tested only on RWMOP, and the absence of interference on the expensive suites must be checked by exact equality with `cooperative`.
 
-Na integração atual, candidatos de índices pares recebem tentativa de movimento; o reparo atua no conjunto de candidatos antes do prescreening. Duplicatas em relação ao arquivo e aos demais candidatos retornam ao candidato original. A adaptação de confiança usa apenas movimentos efetivamente escolhidos e avaliados; candidatos que também foram reparados são excluídos do feedback de raio do movimento. O gate cronológico do reparo é um diagnóstico interno: o suporte é selecionado com acesso ao conjunto disponível de X/F, tornando a avaliação transdutiva, e não uma validação externa independente. A caixa de confiança fica ao redor do candidato, não da região coberta pelo suporte; o ajuste pode extrapolar. Essas limitações devem aparecer na interpretação dos resultados.
+In the current integration, candidates with even indices receive a movement attempt; the repair acts on the set of candidates before prescreening. Duplicates of the archive or of other candidates revert to the original candidate. Confidence adaptation uses only movements actually chosen and evaluated; candidates that were also repaired are excluded from the radius feedback of the movement. The chronological gate of the repair is an internal diagnostic: the support is selected with access to the available X/F data, which makes the assessment transductive rather than an independent external validation. The trust box is centered on the candidate, not on the region covered by the support; the fit may extrapolate. These limitations must appear in the interpretation of the results.
 
-## Matriz de problemas e orçamento
+## Problem matrix and budget
 
-| Suíte | Instâncias | Configuração |
+| Suite | Instances | Configuration |
 |---|---:|---|
-| WFG principal | 54 | WFG1–9 × m = {3,6,9} × d = {10,100}; N = 50; 300 FEs. |
-| WFG muitos objetivos | 36 | WFG1–9 × m = {15,20} × d = {m−1+10,100}; N = 50; 300 FEs. |
-| DTLZ | 30 | DTLZ1,2,3,4,7 × m = {3,6,9} × d = {10,100}; N = 50; 300 FEs. |
-| DTLZ expansão (`AC_E`) | 28 | DTLZ1–7 × m = {15,20} × d = {m−1+10,100}; N = 50; 300 FEs. |
-| RWMOP | 35 | RWMOP1–35; dimensões, N e orçamento do protocolo Kumar já codificado em `q_build_tasks('Q3')`. |
+| Main WFG | 54 | WFG1–9 × m = {3,6,9} × d = {10,100}; N = 50; 300 evaluations. |
+| Many-objective WFG | 36 | WFG1–9 × m = {15,20} × d = {m−1+10,100}; N = 50; 300 evaluations. |
+| DTLZ | 30 | DTLZ1,2,3,4,7 × m = {3,6,9} × d = {10,100}; N = 50; 300 evaluations. |
+| DTLZ extension (`AC_E`) | 28 | DTLZ1–7 × m = {15,20} × d = {m−1+10,100}; N = 50; 300 evaluations. |
+| RWMOP | 35 | RWMOP1–35; dimensions, N, and budget of the Kumar protocol already encoded in `q_build_tasks('Q3')`. |
 
-RWMOP mantém o número de objetivos próprio de cada problema: não é artificialmente convertido em m = 3,6,9,15,20. Seus N são 80, 105 ou 212; os orçamentos são 20.000, 26.250, 53.000 ou 80.000 FEs conforme o problema. A extensão `AC_E` inclui DTLZ com m = 15 e 20 sem alterar a matriz histórica; DTLZ5/6 acrescentam estruturas degeneradas. Congelar parâmetros e finalistas antes de abrir a extensão, verificar as fronteiras de referência e manter o resultado dessa expansão separado da reprodução histórica. Nem todas as combinações DTLZ1–7 × m estão presentes na matriz histórica: DTLZ5/6 com m = 3,6,9 continuam fora desta versão.
+RWMOP keeps the number of objectives of each problem: it is not artificially converted to m = 3, 6, 9, 15, 20. Its N values are 80, 105, or 212; the budgets are 20,000, 26,250, 53,000, or 80,000 evaluations depending on the problem. The `AC_E` extension includes DTLZ with m = 15 and 20 without changing the historical matrix; DTLZ5/6 add degenerate structures. Parameters and finalists are to be frozen before the extension is opened, the reference fronts checked, and the result of this extension kept separate from the historical reproduction. Not all combinations DTLZ1–7 × m are present in the historical matrix: DTLZ5/6 with m = 3, 6, 9 remain outside this version.
 
-Toda avaliação verdadeira deve atravessar o contador da instância de `PROBLEM`. O resultado válido exige `Problem.FE == maxFE`, `size(recObjs,1) == maxFE` e `size(recCons,1) == maxFE`. Uma parada antecipada ou exceção é uma falha, nunca uma execução completa pontuada com menos FEs. O desenho inicial conta no orçamento. Usar o mesmo orçamento também para controles, incluindo todas as avaliações eventualmente executadas por métodos auxiliares.
+Every true evaluation must go through the counter of the `PROBLEM` instance. A valid result requires `Problem.FE == maxFE`, `size(recObjs,1) == maxFE`, and `size(recCons,1) == maxFE`. An early stop or an exception is a failure, never a complete run scored with fewer evaluations. The initial design counts against the budget. The same budget also applies to the controls, including any evaluation made by auxiliary methods.
 
-## Blocos e separação temporal
+## Blocks and temporal separation
 
-| Bloco | Instâncias | Perfis padrão | Runs padrão | Total padrão |
+| Block | Instances | Default profiles | Default runs | Default total |
 |---|---:|---:|---|---:|
-| `AC_A` | 90 WFG | 10: g15, legacy, quatro alterações isoladas e quatro perfis cooperative | 1:10 | 9.000 |
-| `AC_B` | 35 RWMOP | 6: g15, legacy, cooperative e três reparos | 1:10 | 2.100 |
-| `AC_C` | 120 WFG + DTLZ | 8: g15, legacy, cooperative e cinco movimentos | 1:10 | 9.600 |
-| `AC_D` | 155, todas as suítes | 3: g15, legacy, cooperative | 31:60 | 13.950 |
-| `AC_E` | 28 DTLZ da expansão | 3: g15, legacy, cooperative | 31:60 | 2.520 |
+| `AC_A` | 90 WFG | 10: g15, legacy, four isolated changes, and four cooperative profiles | 1:10 | 9,000 |
+| `AC_B` | 35 RWMOP | 6: g15, legacy, cooperative, and three repairs | 1:10 | 2,100 |
+| `AC_C` | 120 WFG + DTLZ | 8: g15, legacy, cooperative, and five movements | 1:10 | 9,600 |
+| `AC_D` | 155, all suites | 3: g15, legacy, cooperative | 31:60 | 13,950 |
+| `AC_E` | 28 DTLZ of the extension | 3: g15, legacy, cooperative | 31:60 | 2,520 |
 
-1. Verificação estrutural no computador principal: somente análise estática, testes numéricos de helpers e construção de manifests. Nenhuma otimização.
-2. Piloto em CASA: runs 1:10 dos blocos necessários. Validar custo, ausência de falhas, orçamento, paridade histórica e utilidade dos sinais. Os mesmos IDs de run já usados historicamente não constituem dados independentes desses resultados anteriores.
-3. Desenvolvimento em CASA: runs 11:30, passados explicitamente ao executor. Ajustes são permitidos aqui, mas todos os candidatos e decisões devem ficar registrados. Não apresentar esse conjunto como confirmação independente após selecionar parâmetros nele.
-4. Congelar implementação, parâmetros, candidatos finalistas, comparadores, critérios e análise antes de abrir `AC_D`. O hash de fontes e o manifesto documentam esse congelamento. O executor não escolhe vencedores.
-5. Confirmação em CASA: runs 31:60. O padrão compara cooperative com g15 e legacy; incluir `move_som`, `repair_som` e/ou `combined` somente por lista explícita previamente congelada. `AC_E` avalia separadamente a expansão DTLZ m = 15/20 com candidatos congelados. Rodar todos os candidatos retrospectivamente e relatar apenas o melhor invalida a interpretação confirmatória.
+1. Structural check on the development computer: static analysis, numerical tests of helpers, and construction of manifests only. No optimization.
+2. Pilot on the execution machine: runs 1:10 of the required blocks. Check cost, absence of failures, budget, historical parity, and the usefulness of the signals. Run IDs already used historically do not constitute data independent of those earlier results.
+3. Development on the execution machine: runs 11:30, passed explicitly to the runner. Adjustments are allowed here, but all candidates and decisions must be recorded. This set is not to be presented as an independent confirmation after parameters have been selected on it.
+4. Freeze the implementation, parameters, finalist candidates, comparators, criteria, and analysis before opening `AC_D`. The source hash and the manifest document this freeze. The runner does not choose winners.
+5. Confirmation on the execution machine: runs 31:60. By default, cooperative is compared with g15 and legacy; `move_som`, `repair_som`, and/or `combined` are included only through an explicit list frozen in advance. `AC_E` assesses the DTLZ m = 15/20 extension separately with frozen candidates. Running all candidates retrospectively and reporting only the best invalidates the confirmatory interpretation.
 
-Não é necessário lançar todos os blocos simultaneamente. A quantidade de perfis e runs pode ser explicitamente reduzida no piloto para estimar custo. Não reduzir orçamento e depois tratar o piloto reduzido como uma repetição do protocolo final.
+It is not necessary to launch all blocks at once. The number of profiles and runs may be explicitly reduced in the pilot to estimate cost. The budget is not to be reduced with the reduced pilot then treated as a repetition of the final protocol.
 
-## Sementes e comparabilidade
+## Seeds and comparability
 
-O arquivo-base mantém a identidade histórica g15, por exemplo `TPIMMOEA_X_g15_WFG1_M3_D10_1.mat`, e o perfil é separado pelo diretório. A semente é exatamente `mod(sum(double(name).*(1:numel(name))) + 7919*run, 2^31-1)`. O identificador final é alterado de `_1` para o run solicitado, incluindo 31:60.
+The base file keeps the historical g15 identity, for example `TPIMMOEA_X_g15_WFG1_M3_D10_1.mat`, and the profile is separated by the folder. The seed is exactly `mod(sum(double(name).*(1:numel(name))) + 7919*run, 2^31-1)`. The final identifier changes from `_1` to the requested run, including 31:60.
 
-Assim, todas as variantes X1 do mesmo problema/run começam com a mesma semente. Isso não significa que toda a trajetória compartilha números aleatórios: diferentes mecanismos consomem o gerador de formas diferentes. A hipótese de pareamento se refere ao desenho randomizado por run, não à identidade das populações de todas as gerações. Verificar a paridade histórica de g15/legacy e a extensão `identity` em um smoke test em CASA antes da campanha; igualdade de parâmetros e hashes sozinha não demonstra paridade numérica.
+Thus, all X1 variants of the same problem and run start from the same seed. This does not mean that the whole trajectory shares random numbers: different mechanisms consume the generator in different ways. The pairing hypothesis refers to the randomized design per run, not to the identity of the populations of all generations. The historical parity of g15/legacy and of the `identity` extension is to be verified by a smoke test on the execution machine before the campaign; equality of parameters and hashes alone does not demonstrate numerical parity.
 
-## Métricas e conjunto pontuado
+## Metrics and scored set
 
-WFG/DTLZ: primária `IGDall`, calculada sobre as soluções factíveis não dominadas de **todas** as avaliações registradas, com a mesma fronteira `Problem.optimum`. `IGDplusAll` é secundária para reduzir ambiguidades relacionadas à dominância. O arquivo também conserva `IGDreported`. A população reportada tem 2N soluções nesse protocolo. Curvas devem comparar pontos de FE comuns, nunca gerações de tamanhos diferentes.
+WFG/DTLZ: primary `IGDall`, computed on the feasible nondominated solutions of **all** recorded evaluations, against the same front `Problem.optimum`. `IGDplusAll` is secondary, to reduce ambiguities related to dominance. The file also keeps `IGDreported`. The reported population has 2N solutions in this protocol. Curves must compare common evaluation counts, never generations of different sizes.
 
-RWMOP: primária de qualidade `HVfixed`, na população final de **N** soluções, usando somente membros factíveis não dominados e ideal/nadir congelados de `results/rwmop_norm.csv`. Normalizar por `(f−ideal)/(nadir−ideal)` e usar referência física fixa 1,1 em cada eixo; reportar volume dividido por `1,1^m`. O exportador compensa a renormalização interna de `HV.m` quando uma solução fica abaixo do ideal congelado. Isso coincide com o procedimento histórico quando não há extrapolação do ideal; divergências nessa condição devem ser explicitadas, não ocultadas. Para m ≥ 4, o HV da instalação usa Monte Carlo com semente auxiliar fixa 1, sem alterar o estado RNG da otimização. Reportar a natureza aproximada da medida.
+RWMOP: primary quality measure `HVfixed`, on the final population of **N** solutions, using only feasible nondominated members and the frozen ideal and nadir points of `results/rwmop_norm.csv`. Normalize by `(f−ideal)/(nadir−ideal)` and use a fixed reference point of 1.1 on each axis; report the volume divided by `1.1^m`. The exporter compensates for the internal renormalization of `HV.m` when a solution lies below the frozen ideal point. This coincides with the historical procedure when the ideal point is not extrapolated; divergences in that condition must be stated, not hidden. For m ≥ 4, the HV of the installation uses Monte Carlo estimation with a fixed auxiliary seed 1, without changing the RNG state of the optimization. The approximate nature of the measure is to be reported.
 
-Se a referência fixa não existir, `HVfixed = NaN` e `HVdefined = false`, inclusive em RWMOP28. Ausência de referência não equivale a HV zero. Havendo referência válida, ausência de solução factível na população final corresponde a HV zero. `HVreported` é uma medida descritiva da normalização padrão PlatEMO e não substitui `HVfixed`.
+If the fixed reference does not exist, `HVfixed = NaN` and `HVdefined = false`, including on RWMOP28. The absence of a reference is not equivalent to HV zero. With a valid reference, the absence of a feasible solution in the final population corresponds to HV zero. `HVreported` is a descriptive measure of the standard PlatEMO normalization and does not replace `HVfixed`.
 
-Reportar também: proporção de runs que obtêm alguma solução factível (`everFeasible`); proporção com solução factível final (`finalFeasible`); quantidade final de factíveis; primeira FE factível; menor violação agregada final; menor violação avaliada. Primeira FE factível ausente é censurada pelo orçamento, não convertida em zero. A soma das violações tem unidades dependentes do problema e só deve ser comparada dentro dele; não produzir uma média bruta de CV entre problemas.
+Also report: the proportion of runs that obtain some feasible solution (`everFeasible`); the proportion with a feasible final set (`finalFeasible`); the final number of feasible solutions; the first feasible evaluation; the smallest final aggregate violation; the smallest evaluated violation. A missing first feasible evaluation is censored at the budget, not converted to zero. The sum of violations has problem-dependent units and must only be compared within a problem; no raw mean of the violation across problems is to be produced.
 
-Separar ganho de viabilidade e ganho de qualidade condicional à viabilidade. Uma média de HV sobre apenas runs bem-sucedidos esconde falhas; por isso a primária inclui zeros de inviabilidade quando o HV é definido. Análises condicionais são secundárias e explicitamente rotuladas. Exportar linhas de runs ausentes ou inválidos, sem removê-las silenciosamente; nenhuma tabela confirmatória é considerada completa antes da auditoria.
+Separate the feasibility gain from the quality gain conditional on feasibility. A mean HV over successful runs only hides failures; the primary measure therefore includes the zeros of infeasibility when the HV is defined. Conditional analyses are secondary and explicitly labeled. Rows of missing or invalid runs are exported, not silently removed; no confirmatory table is considered complete before the audit.
 
-## Comparadores externos e limites da entrega
+## External comparators and scope of the delivery
 
-O executor AC implementa as variantes TPIMMOEA_X e os controles g15/legacy. Os algoritmos externos existentes no repositório continuam disponíveis nos builders C/D/P, mas **não são automaticamente recriados em 31:60 pelo AC**. Antes de afirmar liderança perante a literatura, congelar a lista de comparadores aplicáveis e gerar suas 30 novas runs com o mesmo orçamento, inicialização declarada, fronteira, protocolo de arquivo/população e política de falha. A comparação com dados antigos 1:30 é evidência descritiva, não o novo teste confirmatório independente.
+The AC runner implements the TPIMMOEA_X variants and the g15/legacy controls. The external algorithms in the repository remain available through the C/D/P builders, but **they are not automatically rerun on runs 31:60 by AC**. Before claiming leadership against the literature, the list of applicable comparators is to be frozen and their 30 new runs generated with the same budget, declared initialization, reference front, archive/population protocol, and failure policy. A comparison with the old runs 1:30 is descriptive evidence, not the new independent confirmatory test.
 
-Incluir os concorrentes fortes já usados no manuscrito por suíte; excluir um comparador apenas por uma razão de aplicabilidade definida antes dos resultados. Documentar especialmente K-RVEA: com tendência linear, a base inicial precisa suportar d+1 termos. Seu estrato d = 10 deve ser mostrado separadamente; não preencher resultados inexistentes em d = 100 com zeros ou piores valores artificiais. N = 50 e orçamento 300 não autorizam ignorar uma exigência de inicialização. Uma adaptação de K-RVEA para outro estrato é outro protocolo e deve ser identificada.
+Include the strong competitors already used in the manuscript per suite; exclude a comparator only for an applicability reason defined before the results. Document K-RVEA in particular: with a linear trend, the initial design must support d + 1 terms. Its d = 10 stratum must be shown separately; nonexistent results at d = 100 are not to be filled with zeros or artificially worse values. N = 50 and a budget of 300 do not justify ignoring an initialization requirement. An adaptation of K-RVEA to another stratum is a different protocol and must be identified.
 
-## Critérios de decisão a congelar antes da execução confirmatória
+## Decision criteria to be frozen before the confirmatory run
 
-Os limiares abaixo são escolhas de desenho propostas nesta versão, não propriedades teóricas do método. Qualquer ajuste deve preceder a abertura dos dados de confirmação.
+The thresholds below are design choices proposed in this version, not theoretical properties of the method. Any adjustment must precede the opening of the confirmation data.
 
-* Integridade obrigatória: zero resultados inválidos; orçamento exato; nenhuma chamada verdadeira fora do contador; dimensões e tamanho da população esperados; identidade de configuração e fontes verificada. Falhas são reportadas e investigadas antes de conclusões competitivas.
-* Cooperação: em WFG, exigir benefício contra legacy e evidência contra ao menos os controles embaralhado e proximidade. Uma melhora de pelo menos 2% na média geométrica da razão IGDall candidato/controle, com limite superior de IC 95% abaixo de 1 e teste ajustado significativo, é o limiar proposto de superioridade prática. Distinguir os estratos m; não usar uma melhora em m = 3 para esconder perda em m = 20.
-* Movimento: exigir benefício contra cooperative e contra move_shrink. Comparar move_som com move_global, move_node e move_proximity para justificar a necessidade do suporte SOM. Se apenas a redução do passo explicar o ganho, essa é a conclusão.
-* Reparo: em problemas com falhas de viabilidade no controle, alvo proposto de aumento absoluto de pelo menos 10 pontos percentuais no sucesso final, com IC da diferença acima de zero, ou menor tempo até viabilidade com censura corretamente tratada. Nos problemas já consistentemente factíveis, exigir preservação do HV e investigar qualidade; não reivindicar ganho de viabilidade por um teto de 100%. Com 30 runs, o IC pode impedir afirmar esse alvo: relatar a incerteza, sem relaxar o critério após observar os dados.
-* Proteção contra regressão: limite superior do IC da razão IGDall candidato/controle menor que 1,03 em cada estrato declarado. Para HV, especificar antes do teste uma margem absoluta de 0,01 na escala de volume normalizado, além de ausência de deterioração da taxa de viabilidade. Zero HV impede usar log-razões de HV; não adicionar constantes escolhidas após os resultados.
-* Combinação: comparar combined com cooperative, move_som e repair_som. Ganho combinado não demonstra aditividade. Usar os perfis separados para detectar antagonismo ou redundância.
+* Mandatory integrity: zero invalid results; exact budget; no true call outside the counter; expected dimensions and population size; configuration and source identity verified. Failures are reported and investigated before competitive conclusions.
+* Cooperation: on WFG, require a benefit against legacy and evidence against at least the shuffled and proximity controls. An improvement of at least 2% in the geometric mean of the IGDall ratio candidate/control, with the upper bound of the 95% CI below 1 and a significant adjusted test, is the proposed threshold of practical superiority. Distinguish the m strata; an improvement at m = 3 must not hide a loss at m = 20.
+* Movement: require a benefit against cooperative and against move_shrink. Compare move_som with move_global, move_node, and move_proximity to justify the need for SOM support. If the reduction of the step alone explains the gain, that is the conclusion.
+* Repair: on problems with feasibility failures in the control, a proposed target of an absolute increase of at least 10 percentage points in final success, with the CI of the difference above zero, or a shorter time to feasibility with censoring correctly handled. On problems already consistently feasible, require preservation of the HV and investigate quality; do not claim a feasibility gain against a ceiling of 100%. With 30 runs, the CI may prevent claiming this target: report the uncertainty, without relaxing the criterion after observing the data.
+* Protection against regression: upper bound of the CI of the IGDall ratio candidate/control below 1.03 in each declared stratum. For HV, specify before the test an absolute margin of 0.01 on the normalized volume scale, in addition to no deterioration of the feasibility rate. Zero HV prevents the use of log-ratios of HV; no constants chosen after the results are to be added.
+* Combination: compare combined with cooperative, move_som, and repair_som. A combined gain does not demonstrate additivity. Use the separate profiles to detect antagonism or redundancy.
 
-Esses critérios são rigorosos e podem permanecer inconclusivos com 30 runs. A decisão científica correta nesse caso é ampliar evidência por um protocolo novo ou reportar inconclusão, não declarar o modelo “número 1” com base na melhor seed.
+These criteria are strict and may remain inconclusive with 30 runs. The correct scientific decision in that case is to extend the evidence through a new protocol or to report inconclusiveness, not to declare the model "number 1" on the basis of the best seed.
 
-## Análise estatística e multiplicidade
+## Statistical analysis and multiplicity
 
-Unidade de replicação: run dentro de uma instância. Unidade de generalização entre problemas: função de benchmark, preservando o agrupamento de suas configurações de m/d. Não tratar 30 runs × 90 instâncias como milhares de funções independentes. Relatar medianas, intervalos interquartis, diferenças/razões de interesse e ICs, além de p-valores.
+Unit of replication: a run within an instance. Unit of generalization across problems: the benchmark function, keeping its m/d configurations grouped. 30 runs × 90 instances are not to be treated as thousands of independent functions. Report medians, interquartile ranges, differences or ratios of interest, and CIs, in addition to p-values.
 
-Para variantes AC com seeds pareadas, o teste confirmatório será a permutação pareada de sinais, bilateral, com 20.000 permutações e semente de análise 20261104. Estatística: média das diferenças por instância, com estimativa p = (1 + número de estatísticas permutadas pelo menos tão extremas)/(20.001), incluindo empates. Reportar também a fração de diferenças positivas/negativas/nulas. Para comparadores com seeds historicamente diferentes, não impor pareamento retrospectivo: usar rank-sum bilateral e tamanho de efeito A12 com empates. Não alternar testes conforme qual produz significância.
+For AC variants with paired seeds, the confirmatory test will be the paired sign-flip permutation test, two-sided, with 20,000 permutations and analysis seed 20261104. Statistic: mean of the per-instance differences, with p = (1 + number of permuted statistics at least as extreme)/20,001, ties included. Also report the fraction of positive, negative, and null differences. For comparators with historically different seeds, no retrospective pairing is imposed: use the two-sided rank-sum test and the A12 effect size with ties. Tests are not to be switched according to which one yields significance.
 
-Congelar famílias de hipóteses antes de abrir AC_D: H-A (cooperação e seus controles), H-B (movimento e seus controles), H-C (viabilidade/HV dos reparos) e H-D (candidato final versus comparadores externos por suíte/estrato). Aplicar Holm a todos os contrastes confirmatórios declarados dentro de cada família; incluir no conjunto de ajustes todos os candidatos finalistas e estratos examinados. O uso de famílias distintas deve corresponder a alegações distintas, não dividir artificialmente uma mesma alegação de liderança para reduzir correção.
+Freeze the families of hypotheses before opening AC_D: H-A (cooperation and its controls), H-B (movement and its controls), H-C (feasibility/HV of the repairs), and H-D (final candidate versus external comparators per suite/stratum). Apply Holm's correction to all declared confirmatory contrasts within each family; include all finalist candidates and examined strata in the adjustment set. Separate families must correspond to separate claims, not artificially split one leadership claim to reduce the correction.
 
-Ranks de Friedman e comparações pós-teste podem resumir os algoritmos com dados completos nas mesmas instâncias, mas não substituem efeito e IC. Para médias de razões de IGD, trabalhar no log. Se houver IGD exatamente zero em qualquer membro de uma comparação no estrato, não calcular a log-razão daquele estrato: reportar zeros e diferenças pareadas, sem afirmar que o critério relativo de 2%/3% foi demonstrado. Não adicionar epsilon. Bootstrap deve respeitar blocos de runs e famílias de problemas. WFG possui apenas nove funções e DTLZ histórico cinco: ICs que pretendam generalizar a novas funções terão limitação substancial, mesmo com muitas seeds. Para primeira viabilidade, usar análise de sobrevivência com censura à direita no maxFE e mostrar taxas de sucesso junto da curva.
+Friedman ranks and post-hoc comparisons may summarize the algorithms with complete data on the same instances, but they do not replace effects and CIs. For means of IGD ratios, work on the log scale. If any member of a comparison has an IGD of exactly zero in a stratum, the log-ratio of that stratum is not computed: report the zeros and the paired differences, without claiming that the relative 2%/3% criterion was demonstrated. No epsilon is added. The bootstrap must respect blocks of runs and families of problems. WFG has only nine functions and the historical DTLZ set five: CIs that aim to generalize to new functions will be substantially limited, even with many seeds. For the first feasible evaluation, use survival analysis with right censoring at maxFE and show success rates together with the curve.
 
-## Custo computacional e diagnóstico
+## Computational cost and diagnostics
 
-Registrar `tSolve` separadamente do tempo total. Rodadas paralelas servem à coleta de qualidade; comparações rigorosas de tempo devem usar a mesma máquina, versão MATLAB, número de threads, modo de execução e carga, preferencialmente uma tarefa por vez. Modelos locais podem custar mais CPU mesmo quando economizam FEs. Reportar ambos.
+Record `tSolve` separately from the total time. Parallel runs serve the collection of quality data; rigorous time comparisons must use the same machine, MATLAB version, number of threads, execution mode, and load, preferably one task at a time. Local models may cost more CPU even when they save evaluations. Report both.
 
-As estatísticas de mecanismo (suporte efetivo, distribuição de raio, frequência de fallback, reparos propostos/aceitos, movimentos escolhidos) devem ser derivadas dos dados já disponíveis. Nenhum diagnóstico pode avaliar o problema para verificar um candidato rejeitado pelo prescreening. O buffer de aprendizagem de 300 registros mantém custo limitado nos RWMOP longos, mas introduz esquecimento: avaliar esse compromisso como sensibilidade prospectiva, sem usar a identidade do problema para escolher o buffer.
+The mechanism statistics (effective support, radius distribution, fallback frequency, proposed and accepted repairs, chosen movements) must be derived from data already available. No diagnostic may evaluate the problem to check a candidate rejected by prescreening. The learning buffer of 300 records keeps the cost bounded on the long RWMOP runs but introduces forgetting: assess this trade-off as a prospective sensitivity, without using the identity of the problem to choose the buffer.
 
-## Execução e auditoria
+## Execution and audit
 
-Instalar o overlay deste repositório sobre uma distribuição completa e compatível do PlatEMO. Carregar primeiro a distribuição completa, depois o overlay, para que `PROBLEM.m` e `TPIMMOEA_X.m` modificados tenham precedência. Confirmar com `which ... -all`; o executor registra os caminhos resolvidos e rejeita uma cópia de TPIMMOEA_X diferente da que acompanha o runner.
+Install the overlay of this repository over a complete and compatible PlatEMO distribution. Load the complete distribution first and then the overlay, so that the modified `PROBLEM.m` and `TPIMMOEA_X.m` take precedence. Confirm with `which ... -all`; the runner records the resolved paths and rejects a copy of TPIMMOEA_X different from the one that accompanies it.
 
 ```matlab
-% Seguro no computador principal: nenhuma avaliação e nenhuma pool.
-addpath(genpath(fullfile(pwd,'PlatEMO'))); % executar na raiz TP-IM-MOEA
+% Safe on any computer: no evaluation and no parallel pool.
+addpath(genpath(fullfile(pwd,'PlatEMO'))); % run from the TP-IM-MOEA root
 report = run_check_x1_installation(false);
-plan = run_ac('AC_A');                   % dryRun=true por padrão
+plan = run_ac('AC_A');                   % dryRun = true by default
 plan = run_ac('AC_D',true,{'g15','legacy','cooperative'},31:60,1);
-extension = run_ac('AC_E');              % DTLZ m=15/20; somente plano
+extension = run_ac('AC_E');              % DTLZ m = 15/20; plan only
 ```
 
-Somente na máquina CASA, informar explicitamente seu hostname real. Não copiar esta configuração de ambiente para o computador principal.
+Real execution requires the environment variable `TPIMMOEA_EXECUTION_HOST` to name the computer (its `COMPUTERNAME`), a guard against starting a long campaign by mistake.
 
 ```matlab
-setenv('TPIMMOEA_EXECUTION_HOST','CASA');
-setenv('TPIMMOEA_CASA_HOSTNAME','NOME_REAL_DA_MAQUINA_CASA');
+setenv('TPIMMOEA_EXECUTION_HOST',getenv('COMPUTERNAME'));
 run_check_x1_installation(true);
-test_x1_integration;                   % smoke/paridade: somente em CASA
-run_ac('AC_A',false,[],1:10,4);          % somente este bloco
-% Desenvolvimento, quando explicitamente decidido:
+test_x1_integration;                     % smoke and parity checks
+run_ac('AC_A',false,[],1:10,4);          % this block only
+% Development, when explicitly decided:
 % run_ac('AC_A',false,{'g15','legacy','cooperative'},11:30,4);
-% Confirmação, somente após congelar os finalistas:
+% Confirmation, only after the finalists are frozen:
 % run_ac('AC_D',false,{'g15','legacy','cooperative'},31:60,4);
 audit = verify_ac_results('AC_A',[],1:10);
-addpath(fullfile(pwd,'analysis'));        % raiz do repositório
+addpath(fullfile(pwd,'analysis'));        % repository root
 T = export_ac('AC_A',[],1:10);
 ```
 
-Resultados ficam em `PlatEMO/Data_AC/<bloco>/<perfil>/`. Antes da execução, o manifesto JSON registra cada tarefa, parâmetros, seed, orçamento, protocolo, SHA-256 da identidade e hashes dos arquivos **resolvidos no path**. Inclui classes de problemas, algoritmo, helpers X1, builders, núcleo PlatEMO e utilitários relevantes. Também registra versão MATLAB e toolboxes. Workers verificam suas fontes contra o manifesto.
+Results are stored in `PlatEMO/Data_AC/<block>/<profile>/`. Before execution, the JSON manifest records each task, parameters, seed, budget, protocol, SHA-256 of the identity, and hashes of the files **resolved on the path**. It includes the problem classes, the algorithm, the X1 helpers, the builders, the PlatEMO core, and relevant utilities. It also records the MATLAB version and toolboxes. Workers check their sources against the manifest.
 
-Retomada só aceita arquivo `COMPLETE` com identidade e fontes idênticas, orçamento exato e tamanhos válidos. O digest inclui versão MATLAB, plataforma e versões dos toolboxes, além dos arquivos. Arquivo incompatível é rejeitado; não é sobrescrito nem usado como run concluída. Para uma nova versão, criar uma cópia versionada do overlay/diretório de campanha e conservar a anterior. A primeira falha gera entrada no log e interrompe a campanha, cancelando futures ainda pendentes; não produz resultado completo. A gravação usa arquivo temporário no mesmo diretório e movimentação final. Os registros são preservados em double e os diagnósticos X1 e o manifesto de fontes acompanham cada resultado. Não iniciar dois controladores para o mesmo conjunto de tarefas.
+Resumption accepts only a `COMPLETE` file with identical identity and sources, exact budget, and valid sizes. The digest includes the MATLAB version, platform, and toolbox versions, in addition to the files. An incompatible file is rejected; it is neither overwritten nor used as a completed run. For a new version, create a versioned copy of the overlay or campaign folder and keep the previous one. The first failure is logged and stops the campaign, cancelling pending futures; it does not produce a complete result. Writing uses a temporary file in the same folder and a final move. Records are kept in double precision, and the X1 diagnostics and the source manifest accompany each result. Two controllers must not be started for the same set of tasks.
 
-O exportador conserva linhas `MISSING`/`INVALID` e os hashes das fontes e da normalização. `verify_ac_results` confere os registros de FE e recalcula os indicadores de viabilidade. A entrega desta implementação não inclui lançamento de campanhas nem afirma que os critérios já foram atingidos.
+The exporter keeps `MISSING`/`INVALID` rows and the hashes of the sources and of the normalization. `verify_ac_results` checks the evaluation records and recomputes the feasibility indicators. The delivery of this implementation does not include launching campaigns and does not claim that the criteria have been met.

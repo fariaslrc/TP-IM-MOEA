@@ -1,20 +1,26 @@
-# Verificação da implementação X1 — 2026-11-04
+# Verification of the X1 implementation
 
-Ambiente local: MATLAB R2026b, Windows. Foi carregada a distribuição completa do PlatEMO seguida do overlay deste repositório. Nenhuma função objetivo de benchmark foi avaliada nesta verificação.
+## Development computer, 2026-11-04
 
-| Verificação | Resultado |
+Environment: MATLAB R2026b, Windows. The complete PlatEMO distribution was loaded, followed by the overlay of this repository. No benchmark objective function was evaluated in this verification.
+
+| Check | Result |
 |---|---|
-| `test_x1_core` | Passou: grafo, massa extradiagonal, transporte de coordenadas, buffer, perfis e preservação do RNG. |
-| `test_x1_movement` | Passou: pares, factibilidade, direção, controles, suporte, raio, fallback e feedback. |
-| `test_x1_repair` | Passou: modelos afins, validação cronológica, posto/condicionamento, QP, limites, restrições nulas e preservação do RNG. |
-| `run_check_x1_installation(true)` | Passou: distribuição completa, overlay, grades AC_A–AC_E, parâmetros, sementes históricas e identidades SHA-256. |
-| `test_ac_resume` | Passou: oito casos sintéticos de integridade, incluindo configuração diferente, registros ausentes/truncados, fonte ausente e objetivos finais inválidos. Nenhum algoritmo executado. |
-| Carregamento de metaclasses | Passou para X1C, X1M, X1F, X1CMF e a fixture sintética, sem instanciar os algoritmos. |
-| `checkcode` | Sem erros de sintaxe nos arquivos da extensão, executor, testes, exportador e integração. Avisos de estilo/crescimento de arrays não impedem execução. |
-| `git diff --check` | Passou. |
+| `test_x1_core` | Passed: graph, off-diagonal mass, coordinate transport, buffer, profiles, and RNG preservation. |
+| `test_x1_movement` | Passed: pairs, feasibility, direction, controls, support, radius, fallback, and feedback. |
+| `test_x1_repair` | Passed: affine models, chronological validation, rank and conditioning, QP, bounds, zero constraints, and RNG preservation. |
+| `run_check_x1_installation(true)` | Passed: complete distribution, overlay, AC_A–AC_E grids, parameters, historical seeds, and SHA-256 identities. |
+| `test_ac_resume` | Passed: eight synthetic integrity cases, including a different configuration, missing or truncated records, a missing source, and invalid final objectives. No algorithm was run. |
+| Metaclass loading | Passed for X1C, X1M, X1F, X1CMF, and the synthetic fixture, without instantiating the algorithms. |
+| `checkcode` | No syntax errors in the files of the extension, runner, tests, exporter, and integration. Style and array-growth warnings do not prevent execution. |
+| `git diff --check` | Passed. |
 
-O teste inicial de reparo encontrou uma fixture sintética com posto insuficiente nos pools locais. O gate rejeitou corretamente esses modelos; a fixture foi substituída por uma amostra determinística de um fluxo aleatório privado. O teste explícito de posto deficiente foi mantido, e a suíte completa passou após a correção.
+The first repair test found a synthetic fixture with insufficient rank in the local pools. The gate correctly rejected those models; the fixture was replaced by a deterministic sample from a private random stream. The explicit rank-deficiency test was kept, and the full suite passed after the correction.
 
-Pendência de validação na máquina de destino: executar `test_x1_integration` em CASA antes de qualquer campanha. Ele verifica orçamento, trajetórias `legacy`/`identity`, compatibilidade dos 44 parâmetros antigos e equivalência dos wrappers em uma fixture pequena. Está protegido pela mesma guarda de host do executor e não foi executado no computador principal.
+## Execution machine, before the campaigns
 
-Esses resultados demonstram propriedades dos componentes e consistência estática da instalação. Não demonstram melhora em IGD/HV, viabilidade de RWMOP, superioridade sobre comparadores nem paridade de trajetórias completas. Essas conclusões dependem da integração em CASA e do [protocolo experimental](phase_AC_protocol.md).
+`test_x1_integration` passed on the machine that ran the experiments, as part of the phase AC smoke test (2026-11-04): 19 profiles, the parity of `identity` with the historical path, the compatibility of the 44 earlier parameters, and the four wrappers. The same smoke test reproduced exactly the published run 1 of g15 and of the earlier X1 profile on WFG4 (m = 3 and 15), DTLZ2, and RWMOP1, and of the gated profile on WFG4 (m = 3 and 15) and RWMOP1, and it confirmed that the repair restores feasibility on RWMOP30.
+
+The installation check of the public class, `run_check_tpimmoea`, passed all five of its checks on the same machine (see the README).
+
+These results demonstrate properties of the components and the consistency of the installation. They do not by themselves demonstrate improvements in IGD or HV, feasibility on RWMOP, or superiority over comparators; those conclusions rest on the experimental campaigns and the [experimental protocol](phase_AC_protocol.md).

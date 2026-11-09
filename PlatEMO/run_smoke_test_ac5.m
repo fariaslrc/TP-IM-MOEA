@@ -1,5 +1,5 @@
 function run_smoke_test_ac5()
-%RUN_SMOKE_TEST_AC5  Installation check of block AC5 (phase AC), CASA only, about 5 min.
+%RUN_SMOKE_TEST_AC5  Installation check of block AC5 (phase AC), execution machine only (ac_check_host), about 5 min.
 %Every line must end in OK:
 %   1. static checks (grids AC1-AC5, seeds, profiles);
 %   2. reproduction, exactly, of run 1 of phase AC with this installation: gated_mass on DTLZ2

@@ -93,5 +93,5 @@ F = pd.read_csv(H / 'f_X1.csv'); FF = pd.read_csv(H / 'f_F1.csv'); g15i = FF[FF.
 print('\nTopology of the final map (rho; g15 = g15i of F1, same seeds):')
 print(pd.concat([g15i.assign(config='g15'), F]).groupby(['config', 'M']).rhoTopo.mean().unstack().round(3).to_string())
 t0 = V0.runtime.mean()
-print('\nWall time relative to V0 (CASA): ' + ', '.join(f'{c} {XX[c].runtime.mean() / t0:.2f}' for c in XX) +
+print('\nWall time relative to V0 (execution machine): ' + ', '.join(f'{c} {XX[c].runtime.mean() / t0:.2f}' for c in XX) +
       ' | ' + ', '.join(f'{c} {WW[c].runtime.mean() / t0:.2f}' for c in cand))

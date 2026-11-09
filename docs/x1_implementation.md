@@ -1,66 +1,66 @@
-# Implementação experimental X1 — fase AC
+# X1 experimental implementation (phase AC)
 
-Estado: rascunho revisado (versão 3); implementada para avaliação; nenhum ganho competitivo foi demonstrado por esta entrega. O SOM continua no treino e na geração de soluções. O protocolo e as regras de decisão estão em [phase_AC_protocol.md](phase_AC_protocol.md).
+Status: revised draft (version 3), implemented for evaluation. The protocol and decision rules are in [phase_AC_protocol.md](phase_AC_protocol.md). The final configuration of the article uses this extension through the profile `gated_repair_global` and is run by the class `TPIMMOEA`; the other profiles below are research controls.
 
-## Algoritmos disponíveis
+## Available algorithms
 
-| Classe PlatEMO | Perfil | Mecanismo adicional |
+| PlatEMO class | Profile | Additional mechanism |
 |---|---|---|
-| `TPIMMOEA_X1C` | `cooperative` | Transporte da normalização, grafo esparso, massa cooperativa limitada e leitura com suporte direto |
-| `TPIMMOEA_X1M` | `move_som` | X1C com campo local de movimentos, compartilhado no treino e na leitura pelo SOM |
-| `TPIMMOEA_X1F` | `repair_som` | X1C com modelos afins individuais de restrições e projeção com folgas |
-| `TPIMMOEA_X1CMF` | `combined` | Combinação experimental; deve ser selecionada apenas após as ablações |
+| `TPIMMOEA_X1C` | `cooperative` | Transport of the normalization, sparse graph, capped cooperative mass, and read-out with direct support |
+| `TPIMMOEA_X1M` | `move_som` | X1C with a local field of movements, shared through the SOM in training and in the read-out |
+| `TPIMMOEA_X1F` | `repair_som` | X1C with individual affine models of the constraints and a projection with slacks |
+| `TPIMMOEA_X1CMF` | `combined` | Experimental combination; to be selected only after the ablations |
 
-Os arquivos estão em `PlatEMO/Algorithms/Multi-objective optimization/TPIMMOEA_X1/`. Cada classe aceita `outN` como seu único parâmetro: 0 reporta o arquivo de busca de até 2N; 1 reporta N soluções escolhidas pela seleção existente. Nos experimentos RWMOP, o executor fixa `outN=1`.
+The files are in `PlatEMO/Algorithms/Multi-objective optimization/TPIMMOEA_X1/`. Each class takes `outN` as its only parameter: 0 reports the search archive of up to 2N solutions; 1 reports N solutions chosen by the existing environmental selection. In the RWMOP experiments, the runner sets `outN = 1`.
 
-O ponto único de integração é `TPIMMOEA_X.m`. Seu parâmetro 45, `x1Options`, é opcional. Vazio mantém o caminho histórico; os 44 parâmetros anteriores conservam suas posições. `x1_parameters` constrói os perfis e fixa `instr=0`: as novas rotinas não usam chamadas de `CalObj`/`CalCon` fora do orçamento.
+The single integration point is `TPIMMOEA_X.m`. Its parameter 45, `x1Options`, is optional. Left empty, it keeps the historical path; the 44 earlier parameters keep their positions. `x1_parameters` builds the profiles and sets `instr = 0`: the new routines make no call to `CalObj`/`CalCon` outside the budget.
 
-## Cooperação e suporte
+## Cooperation and support
 
-`x1_graph` constrói um grafo mútuo dos quatro vizinhos angulares mais próximos. Componentes desconectadas permanecem desconectadas. O controle de permutação usa um fluxo aleatório privado e preserva a sequência aleatória do otimizador. O grafo histórico é devolvido sem reconstrução no controle `identity`.
+`x1_graph` builds a mutual graph of the four angularly nearest neighbors. Disconnected components remain disconnected. The permutation control uses a private random stream and preserves the random sequence of the optimizer. The historical graph is returned without reconstruction in the `identity` control.
 
-Se `c_j` é o número de BMUs diretos da região j na chamada de treino, a confiança é `q_j=c_j/(c_j+2)`. Atualizações recebidas dos vizinhos não contam como evidência direta. Durante a fase de ordenação, o vencedor conserva peso 1. Os pesos gaussianos dos outros nós são multiplicados por `sqrt(q_b*q_j)` e normalizados para somar 1 quando há suporte; sem suporte, sua soma é zero. Esse orçamento refere-se a cada apresentação de amostra, não a todo o treinamento.
+If `c_j` is the number of direct BMUs of region j in the training call, the confidence is `q_j = c_j/(c_j+2)`. Updates received from neighbors do not count as direct evidence. During the ordering phase, the winner keeps weight 1. The Gaussian weights of the other nodes are multiplied by `sqrt(q_b*q_j)` and normalized to sum to 1 when there is support; without support, their sum is zero. This budget refers to each presentation of a sample, not to the whole training.
 
-A leitura usa vizinhos de um salto com suporte direto. Os coeficientes convexos obtidos pelo NNLS existente são ajustados pela mesma confiabilidade entre regiões e renormalizados. Portanto, após esse ajuste, não são o minimizador exato do NNLS original. O controle de proximidade troca os vizinhos do grafo pelos protótipos mais próximos em objetivos, mantendo o número elegível de vizinhos.
+The read-out uses one-hop neighbors with direct support. The convex coefficients obtained by the existing NNLS are adjusted by the same reliability between regions and renormalized. After this adjustment, they are therefore not the exact minimizer of the original NNLS. The proximity control replaces the graph neighbors by the prototypes nearest in objective space, keeping the eligible number of neighbors.
 
-Os protótipos de objetivos são transportados entre normalizações por `W_new=(W_old*s_old+ideal_old-ideal_new)/s_new`. A parte de decisão permanece normalizada pelos limites do problema. O `LDis` histórico da geração é preservado: a nova vizinhança não ativa por acidente o antigo preenchimento de nichos.
+The objective prototypes are transported between normalizations by `W_new = (W_old*s_old + ideal_old - ideal_new)/s_new`. The decision part remains normalized by the bounds of the problem. The historical `LDis` of the generation is preserved, so the new neighborhood does not accidentally activate the earlier niche filling.
 
-## Aprendizagem de movimentos
+## Movement learning
 
-Um buffer cronológico separado guarda as últimas 300 soluções realmente avaliadas. Ele não substitui nem aumenta o arquivo de seleção. A cada geração, `x1_movement_fit` extrai pares factíveis na mesma região de referência, com vizinhança mútua em decisões e distância RMS normalizada de até 0,25. Orienta cada par pela melhora de PBI, com a mesma normalização e direção de referência para os dois extremos.
+A separate chronological buffer keeps the last 300 solutions actually evaluated. It neither replaces nor enlarges the selection archive. In each generation, `x1_movement_fit` extracts feasible pairs in the same reference region, with mutual neighborhood in decision space and a normalized RMS distance of at most 0.25. Each pair is oriented by the improvement in PBI, with the same normalization and reference direction for both ends.
 
-Os controles `node`, `global`, `som` e `proximity` usam a mesma extração de pares. O modo SOM compartilha os vetores pelo grafo no ajuste e novamente na leitura. A confiança deriva dos coeficientes dos pares originais; seu suporte efetivo algébrico não equivale a uma contagem de observações independentes. A regra de proximidade reduz saltos entre regiões distantes, mas não prova que ramos distintos foram separados.
+The `node`, `global`, `som`, and `proximity` controls use the same pair extraction. The SOM mode shares the vectors through the graph in the fit and again in the read-out. The confidence derives from the coefficients of the original pairs; its algebraic effective support is not a count of independent observations. The proximity rule reduces jumps between distant regions but does not prove that distinct branches were separated.
 
-Nos índices pares elegíveis do pool, o candidato proposto é `base + vetor_aprendido + 0,25*(DE-base)`, limitado por um raio RMS e pelos limites de decisão. O raio começa em 0,1, fica em [0,005; 0,25] e recebe feedback somente de candidatos realmente alterados e avaliados. Candidatos posteriormente reparados são excluídos desse feedback. O controle `move_shrink` aplica a mesma redução do DE e o limite de raio, sem vetor aprendido. Ausência de suporte preserva exatamente o candidato DE original.
+At the eligible even indices of the pool, the proposed candidate is `base + learned_vector + 0.25*(DE - base)`, bounded by an RMS radius and by the decision bounds. The radius starts at 0.1, stays in [0.005, 0.25], and receives feedback only from candidates actually changed and evaluated. Candidates later repaired are excluded from this feedback. The `move_shrink` control applies the same reduction of the DE step and the radius limit, without a learned vector. Without support, the original DE candidate is kept exactly.
 
-## Gatilhos de ativação
+## Activation gates
 
-Os dois mecanismos têm portões fixados antes de qualquer resultado AC (`x1_options`). Um mecanismo desligado não é ajustado nem aplicado, e não sorteia números; a execução segue exatamente o perfil sem ele. O estado de cada geração fica em `Algorithm.metric.x1GateLog` (FE, movimento ligado, reparo ligado).
+The mechanisms have gates fixed before any AC result (`x1_options`). A mechanism that is off is neither fitted nor applied and draws no random numbers; the run follows exactly the profile without it. The state of each generation is stored in `Algorithm.metric.x1GateLog` (evaluations, movement on, repair on).
 
-* **Movimento:** só atua quando `Problem.FE >= moveMinFE` (padrão 300). Com o orçamento de 300 avaliações (regime caro: WFG e DTLZ), nunca atua, e `move_*` coincide com `cooperative`. No RWMOP, entra depois das primeiras 300 avaliações, quando o buffer de 300 registros já está cheio.
-* **Reparo:** único modo, `repairTrigger = 'infeasible'`: só atua enquanto a fração factível do arquivo for no máximo `repairFeasTarget` (padrão 0), isto é, uma fase de restauração de viabilidade. Nunca atua em um problema sem violação observada.
-* **Ordenação (`orderGate`):** a fase de ordenação só é aplicada quando a camada externa do `UniformPoint(N,m)` tem resolução H1 ≥ 2. Com H1 = 1 (N = 50 e m ≥ 15), todas as direções de uma camada são adjacentes entre si, e não há vizinhança local.
+* **Movement:** acts only when `Problem.FE >= moveMinFE` (default 300). With the budget of 300 evaluations (the expensive regime: WFG and DTLZ), it never acts, and `move_*` coincides with `cooperative`. On RWMOP, it starts after the first 300 evaluations, when the 300-record buffer is already full.
+* **Repair:** a single mode, `repairTrigger = 'infeasible'`: it acts only while the feasible fraction of the archive is at most `repairFeasTarget` (default 0), that is, as a feasibility-restoration phase. It never acts on a problem without observed violation.
+* **Ordering (`orderGate`):** the ordering phase is applied only when the outer layer of `UniformPoint(N,m)` has resolution H1 ≥ 2. With H1 = 1 (for N = 50, from m = 10 on; m = 15 and 20 among the cases studied), all directions of a layer are adjacent to one another, and there is no local neighborhood.
 
-Revisão de 2026-11-04 (versão 3 do protocolo): o grafo mútuo (`graphMode = 'mutual'`), os pesos de confiança (`supportWeights`) e o movimento não entram na campanha; a massa cooperativa passou a apenas reduzir. Ver [phase_AC_protocol.md](phase_AC_protocol.md).
+Revision of 2026-11-04 (version 3 of the protocol): the mutual graph (`graphMode = 'mutual'`), the confidence weights (`supportWeights`), and the movement are not part of the campaign; the cooperative mass cap now only reduces. See [phase_AC_protocol.md](phase_AC_protocol.md).
 
-## Reparo de restrições
+## Constraint repair
 
-`x1_repair_fit` ajusta uma função afim para cada restrição observada. Usa uma divisão cronológica interna para conferir erro, posto e condicionamento antes do reajuste com todos os dados do pool. Os modos `global`, `proximity` e `som` distinguem o efeito de um modelo global da contribuição da topologia. O modo SOM não atravessa componentes desconectadas para completar um pool.
+`x1_repair_fit` fits an affine function to each observed constraint. It uses an internal chronological split to check the error, rank, and conditioning before refitting with all the data of the pool. The `global`, `proximity`, and `som` modes separate the effect of a global model from the contribution of the topology. The SOM mode does not cross disconnected components to complete a pool.
 
-`x1_repair_apply` resolve uma projeção quadrática com folgas L1, margens de erro, limites de decisão e uma caixa de confiança ao redor do candidato. Não conhece a identidade nem as fórmulas do problema. Um modelo rejeitado ou falha numérica preserva o candidato. Restrições observadas identicamente nulas não recebem margem artificial. Depois da projeção, duplicatas com o arquivo ou com qualquer outro candidato revertem à proposta anterior.
+`x1_repair_apply` solves a quadratic projection with L1 slacks, error margins, decision bounds, and a trust box around the candidate. It knows neither the identity nor the formulas of the problem. A rejected model or a numerical failure keeps the candidate unchanged. Constraints observed to be identically zero receive no artificial margin. After the projection, duplicates of the archive or of any other candidate revert to the previous proposal.
 
-O gate é uma validação interna, parcialmente transdutiva: os pools e associações podem usar X/F já observados. A caixa limita o deslocamento a partir do candidato, não a distância ao suporte de treino. Portanto, o reparo pode extrapolar e a factibilidade só é confirmada após a avaliação verdadeira. Para D alto, orçamento baixo ou restrições não afins, a rejeição do modelo é um comportamento esperado.
+The gate is an internal, partly transductive validation: the pools and associations may use X/F data already observed. The box bounds the displacement from the candidate, not the distance to the training support. The repair may therefore extrapolate, and feasibility is only confirmed after the true evaluation. With large d, a small budget, or nonaffine constraints, rejection of the model is expected behavior.
 
-## Controles e diagnósticos
+## Controls and diagnostics
 
-Além dos quatro algoritmos, `x1_parameters` oferece: `g15`, `legacy` (X1 histórica), `identity`, `transport`, `direct`, `mass`, `sparse`, `cooperative_no_order`, `cooperative_shuffled`, `cooperative_proximity`, `move_node`, `move_global`, `move_som`, `move_proximity`, `move_shrink`, `repair_global`, `repair_proximity` e `repair_som`.
+In addition to the four algorithms, `x1_parameters` offers: `g15`, `legacy` (historical X1), `identity`, `transport`, `direct`, `mass`, `sparse`, `cooperative_no_order`, `cooperative_shuffled`, `cooperative_proximity`, `move_node`, `move_global`, `move_som`, `move_proximity`, `move_shrink`, `repair_global`, `repair_proximity`, and `repair_som`, as well as the gated profiles of version 3 (`gated`, `gated_transport`, `gated_mass`, `gated_direct`, `coop3`, `gated_repair_global`, `gated_repair_som`, `gated_mass_repair_global`) and the phase AD profiles (`final_A`, `final_B`, `final_AB`, `final_Brand`).
 
-`Algorithm.metric.x1GraphLog` registra FE, número de nós, grau médio, nós com suporte direto, nós atingidos no treino e confiança média. `x1Diagnostics` registra candidatos gerados/avaliados, movimentos/reparos efetivamente usados, deslocamentos, raio médio, modelos de reparo ativos e motivos de fallback. Custo computacional e frequência de ativação devem acompanhar as métricas de qualidade.
+`Algorithm.metric.x1GraphLog` records the evaluations, number of nodes, mean degree, nodes with direct support, nodes reached in training, and mean confidence. `x1Diagnostics` records generated and evaluated candidates, movements and repairs actually used, displacements, mean radius, active repair models, and reasons for fallback. Computational cost and activation frequency should accompany the quality metrics.
 
-## Validação e execução
+## Validation and execution
 
-`run_x1_unit_tests` executa apenas testes de arrays: massa cooperativa, desconexão, transporte, buffer, perfis, aprendizagem, controles, raio, factibilidade, regressão, rank, holdout, QP e preservação do RNG. Não instancia um problema de benchmark. `run_check_x1_installation` verifica grades, sementes, hashes e orçamento sem avaliações.
+`run_x1_unit_tests` runs array-level tests only: cooperative mass, disconnection, transport, buffer, profiles, learning, controls, radius, feasibility, regression, rank, holdout, QP, and RNG preservation. It does not instantiate a benchmark problem. `run_check_x1_installation` checks lattices, seeds, hashes, and budget without evaluations.
 
-`test_x1_integration`, protegido para CASA, verifica contratos de classes, orçamento e paridade entre `legacy` e `identity` em uma fixture sintética. Esse teste precisa passar na instalação de destino antes das campanhas. Os testes locais de componentes não demonstram paridade de trajetórias completas, ganho de desempenho ou superioridade científica.
+`test_x1_integration`, protected by the host guard (`ac_check_host`), checks class contracts, budget, and parity between `legacy` and `identity` on a synthetic fixture. It passed on the execution machine before the campaigns (see [x1_validation.md](x1_validation.md)). The local component tests do not demonstrate parity of complete trajectories, performance gains, or scientific superiority.
 
-Carregue primeiro uma instalação completa do PlatEMO e depois este overlay, de modo que `which TPIMMOEA_X -all` e `which PROBLEM -all` mostrem as versões corretas. A distribuição completa e os toolboxes de Statistics e Optimization são necessários. Veja os comandos e a guarda de execução em [phase_AC_protocol.md](phase_AC_protocol.md).
+Load a complete PlatEMO installation first and then this overlay, so that `which TPIMMOEA_X -all` and `which PROBLEM -all` show the correct versions. The complete distribution and the Statistics and Optimization toolboxes are required. The commands and the host guard are described in [phase_AC_protocol.md](phase_AC_protocol.md).

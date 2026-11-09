@@ -1,7 +1,7 @@
 function manifest = run_ac(block,dryRun,profiles,runs,numWorkers)
-%RUN_AC Plan or explicitly execute one preregistered block on CASA.
+%RUN_AC Plan or explicitly execute one preregistered block on the execution machine.
 %   run_ac('AC_A')                        % default: dry run only
-%   run_ac('AC_A',false,[],1:10,4)         % explicit CASA pilot
+%   run_ac('AC_A',false,[],1:10,4)         % explicit pilot run
 %   run_ac('AC_D',false,{'g15','legacy','cooperative'},31:60,4)
 % Never automatically selects a winner, starts another phase, or overwrites
 % results from a different source/configuration. Do not run two controllers

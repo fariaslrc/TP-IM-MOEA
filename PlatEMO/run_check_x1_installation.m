@@ -1,7 +1,7 @@
 function report = run_check_x1_installation(requireRuntime)
 %RUN_CHECK_X1_INSTALLATION Static source/manifest checks of phase AC (version 3); zero evaluations.
 % Safe on the main PC. Does not instantiate PROBLEM/ALGORITHM or create pools.
-% Pass true to require a complete installed overlay (CASA).
+% Pass true to require a complete installed overlay (execution machine).
     if nargin < 1, requireRuntime = false; end
     blocks = {'AC1','AC2','AC3','AC4','AC5','AD1','AD2','AD3','AD4'}; perRun = [216,144,120,105,70,216,144,120,105];
     allTasks = [];

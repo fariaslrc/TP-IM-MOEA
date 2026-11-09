@@ -1,6 +1,6 @@
 function run_smoke_test_ad()
 %RUN_SMOKE_TEST_AD  Installation check of phase AD (proposals A and B on the final model F),
-%CASA only, about 10 min. Every line must end in OK:
+%Execution machine only (ac_check_host), about 10 min. Every line must end in OK:
 %   1. static checks (grids AC1-AC5 and AD1-AD4, seeds, profiles);
 %   2. the new code leaves F unchanged: F (gated_repair_global) reproduces run 1 of X1 on WFG4
 %      (m = 3), of X2 on WFG4 (m = 15) and of block AC4 on RWMOP30, exactly;

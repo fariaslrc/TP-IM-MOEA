@@ -1,7 +1,7 @@
 function source = ac_provenance(tasks,requireRuntime)
 %AC_PROVENANCE Record resolved sources, not merely the repository copy.
 % File locations are reported; the digest uses logical names and bytes so
-% an identical installation may be relocated from the main PC to CASA.
+% an identical installation may be relocated from the development computer to the execution machine.
     if nargin < 2, requireRuntime = false; end
     names = {'TPIMMOEA_X','x1_options','x1_parameters','PROBLEM','ALGORITHM', ...
         'SOLUTION','UniformPoint','NDSort','OperatorGA','OperatorDE','HV','IGD', ...
